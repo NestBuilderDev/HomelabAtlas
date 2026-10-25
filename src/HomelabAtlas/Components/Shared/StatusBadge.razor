@@ -1,0 +1,15 @@
+<span class="badge @Css">@(Status ?? Fallback)</span>
+
+@code {
+    [Parameter] public string? Status { get; set; }
+    [Parameter] public string Fallback { get; set; } = "nie synchronisiert";
+
+    private string Css => Status switch
+    {
+        "OK" or "ALLOW" or "ONLINE" => "ok",
+        "Warnung" => "warn",
+        "Fehler" or "BLOCK" or "REJECT" or "OFFLINE" => "err",
+        "Manuell" => "manual",
+        _ => "neutral"
+    };
+}

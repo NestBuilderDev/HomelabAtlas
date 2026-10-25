@@ -1,0 +1,29 @@
+<div class="modal-backdrop">
+    <div class="modal" @onkeydown="OnKey">
+        <div class="modal-head">
+            <h2>@Title</h2>
+            <button class="btn small" title="Schließen" @onclick="OnCancel">✕</button>
+        </div>
+        <div class="form">
+            @ChildContent
+        </div>
+        @if (!string.IsNullOrEmpty(Error))
+        {
+            <div class="alert err">@Error</div>
+        }
+        <div class="toolbar">
+            <button class="btn primary" @onclick="OnSave">Speichern</button>
+            <button class="btn" @onclick="OnCancel">Abbrechen</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private Task OnKey(KeyboardEventArgs e) => e.Key == "Escape" ? OnCancel.InvokeAsync() : Task.CompletedTask;
+}

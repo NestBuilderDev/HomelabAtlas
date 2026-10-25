@@ -1,0 +1,83 @@
+@page "/networks"
+@inherits ListPageBase<NetworkEntry>
+
+<PageTitle>Netzwerke &amp; VLANs – HomelabAtlas</PageTitle>
+
+<h1>Netzwerke &amp; VLANs</h1>
+
+<FilterBar Controllers="ControllerList" @bind-ControllerId="ControllerFilter" @bind-Search="Search">
+    <button class="btn primary" @onclick="NewItem">+ Netzwerk hinzufügen</button>
+</FilterBar>
+
+<DataGrid TItem="NetworkEntry" Items="Filtered" Columns="Columns" Key="x => x.Id"
+          RowClass="RowCss" CanEdit="IsEditable" OnEdit="EditItem" OnDelete="DeleteAsync">
+    <DetailTemplate Context="n">
+        <RowDetails T="NetworkEntry" Item="n" />
+    </DetailTemplate>
+</DataGrid>
+
+@if (Editing is not null)
+{
+    <EditDialog Title="@EditTitle" Error="@EditError" OnSave="SaveAsync" OnCancel="CancelEdit">
+        <SiteSelect Sites="SiteList" @bind-Value="Editing.SiteId" />
+        <label>Name *<input @bind="Editing.Name" placeholder="z. B. Produktion" /></label>
+        <label>VLAN-ID<input type="number" min="1" max="4094" @bind="Editing.VlanId" /></label>
+        <label>Subnetz (CIDR)<input @bind="Editing.Subnet" placeholder="10.20.30.0/24" /></label>
+        <label>Gateway<input @bind="Editing.GatewayIp" placeholder="10.20.30.1" /></label>
+        <label>Typ / Verwaltung<input @bind="Editing.Management" list="mgmt-types" placeholder="z. B. Fremdnetz, Provider, Transfer" /></label>
+        <datalist id="mgmt-types">
+            <option value="Fremdnetz"></option><option value="Provider"></option><option value="Transfer"></option>
+            <option value="Management"></option><option value="DMZ"></option><option value="VPN"></option>
+        </datalist>
+        <label>DHCP<input @bind="Editing.DhcpMode" list="dhcp-modes" placeholder="z. B. SERVER, RELAY, keiner" /></label>
+        <datalist id="dhcp-modes">
+            <option value="SERVER"></option><option value="RELAY"></option><option value="keiner"></option>
+        </datalist>
+        <label>DHCP-Bereich<input @bind="Editing.DhcpRange" placeholder="10.20.30.100 – 10.20.30.200" /></label>
+        <label class="check"><input type="checkbox" @bind="Editing.Enabled" /> aktiv</label>
+        <label class="wide">Notizen<textarea rows="3" @bind="Editing.Notes"></textarea></label>
+    </EditDialog>
+}
+
+@code {
+    protected override string EntityLabel => "Netzwerk";
+
+    protected override List<GridColumn<NetworkEntry>> BuildColumns() =>
+    [
+        SiteColumn(),
+        new() { Title = "Name", Value = n => n.Name, Template = n => @<span><b>@n.Name</b><span class="muted small">@(n.IsDefault ? " (Default)" : "")</span></span> },
+        new() { Title = "VLAN", Value = n => n.VlanId?.ToString(), SortKey = n => n.VlanId },
+        IpColumn("Subnetz", n => n.Subnet),
+        IpColumn("Gateway", n => n.GatewayIp),
+        new() { Title = "DHCP", Value = n => n.DhcpMode, SelectFilter = true },
+        new() { Title = "DHCP-Bereich", Value = n => n.DhcpRange, CssClass = "mono" },
+        new() { Title = "Typ", Value = n => n.Management, SelectFilter = true },
+        new() { Title = "Aktiv", Value = n => Fmt.YesNo(n.Enabled), SelectFilter = true },
+        SourceColumn(),
+        NotesColumn()
+    ];
+
+    protected override bool Matches(NetworkEntry n, string t) =>
+        Has(n.Name, t) || Has(n.Subnet, t) || Has(n.GatewayIp, t) || Has(n.Management, t) || n.VlanId?.ToString() == t;
+
+    protected override void CopyEditable(NetworkEntry f, NetworkEntry t)
+    {
+        t.Name = f.Name.Trim();
+        t.VlanId = f.VlanId;
+        t.Subnet = Fmt.Clean(f.Subnet);
+        t.GatewayIp = Fmt.Clean(f.GatewayIp);
+        t.Management = Fmt.Clean(f.Management);
+        t.DhcpMode = Fmt.Clean(f.DhcpMode);
+        t.DhcpRange = Fmt.Clean(f.DhcpRange);
+        t.Enabled = f.Enabled;
+    }
+
+    protected override string? Validate(NetworkEntry n)
+    {
+        if (string.IsNullOrWhiteSpace(n.Name)) return "Name ist ein Pflichtfeld.";
+        if (n.VlanId is < 1 or > 4094) return "VLAN-ID muss zwischen 1 und 4094 liegen.";
+        return null;
+    }
+
+    protected override string DisplayName(NetworkEntry n) => n.Name;
+}

@@ -1,0 +1,91 @@
+@page "/clients"
+@inherits ListPageBase<ClientEntry>
+
+<PageTitle>Clients – HomelabAtlas</PageTitle>
+
+<h1>Clients</h1>
+
+<FilterBar Controllers="ControllerList" @bind-ControllerId="ControllerFilter" @bind-Search="Search">
+    <button class="btn primary" @onclick="NewItem">+ Client hinzufügen</button>
+</FilterBar>
+
+<DataGrid TItem="ClientEntry" Items="Filtered" Columns="Columns" Key="x => x.Id"
+          RowClass="RowCss" CanEdit="IsEditable" OnEdit="EditItem" OnDelete="DeleteAsync">
+    <DetailTemplate Context="c">
+        <RowDetails T="ClientEntry" Item="c" />
+    </DetailTemplate>
+</DataGrid>
+
+@if (Editing is not null)
+{
+    <EditDialog Title="@EditTitle" Error="@EditError" OnSave="SaveAsync" OnCancel="CancelEdit">
+        <SiteSelect Sites="SiteList" @bind-Value="Editing.SiteId" />
+        <label>Name *<input @bind="Editing.Name" placeholder="z. B. PC-Werkstatt-03" /></label>
+        <label>Typ<input @bind="Editing.Type" list="client-types" /></label>
+        <datalist id="client-types">
+            <option value="WIRED"></option><option value="WIRELESS"></option><option value="VPN"></option>
+        </datalist>
+        <label>IP-Adresse<input @bind="Editing.IpAddress" /></label>
+        <label>MAC-Adresse<input @bind="Editing.MacAddress" /></label>
+        <label>Uplink-Gerät
+            <select @bind="Editing.UplinkDeviceExternalId">
+                <option value="">– keins –</option>
+                @foreach (var d in devices.Where(d => d.SiteId == Editing.SiteId).OrderBy(d => d.Name))
+                {
+                    <option value="@d.ExternalId">@d.Name @(d.IsManual ? "(manuell)" : "")</option>
+                }
+            </select>
+        </label>
+        <label class="wide">Notizen<textarea rows="3" @bind="Editing.Notes"></textarea></label>
+    </EditDialog>
+}
+
+@code {
+    private List<DeviceEntry> devices = new();
+    private Dictionary<(int, string), string> deviceNames = new();
+
+    protected override string EntityLabel => "Client";
+
+    protected override async Task OnLoadedAsync(HomelabAtlasDbContext db)
+    {
+        devices = await db.Devices.AsNoTracking().ToListAsync();
+        deviceNames = devices.ToDictionary(d => (d.SiteId, d.ExternalId), d => d.Name);
+    }
+
+    private string? Uplink(ClientEntry c) =>
+        c.UplinkDeviceExternalId is null ? null
+        : deviceNames.TryGetValue((c.SiteId, c.UplinkDeviceExternalId), out var n) ? n : c.UplinkDeviceExternalId;
+
+    protected override List<GridColumn<ClientEntry>> BuildColumns() =>
+    [
+        SiteColumn(),
+        new() { Title = "Name", Value = c => c.Name, Template = c => @<b>@c.Name</b> },
+        new() { Title = "Typ", Value = c => c.Type, SelectFilter = true },
+        IpColumn("IP", c => c.IpAddress),
+        new() { Title = "MAC", Value = c => c.MacAddress, CssClass = "mono" },
+        new() { Title = "Uplink-Gerät", Value = Uplink, SelectFilter = true },
+        new() { Title = "Verbunden seit", Value = c => c.ConnectedAt },
+        SourceColumn(),
+        NotesColumn()
+    ];
+
+    protected override bool Matches(ClientEntry c, string t) =>
+        Has(c.Name, t) || Has(c.IpAddress, t) || Has(c.MacAddress, t) || Has(c.Type, t) || Has(Uplink(c), t);
+
+    protected override void CopyEditable(ClientEntry f, ClientEntry t)
+    {
+        t.Name = f.Name.Trim();
+        t.Type = Fmt.Clean(f.Type);
+        t.IpAddress = Fmt.Clean(f.IpAddress);
+        t.MacAddress = Fmt.Clean(f.MacAddress)?.ToLowerInvariant();
+        t.UplinkDeviceExternalId = Fmt.Clean(f.UplinkDeviceExternalId);
+        t.ConnectedAt = f.ConnectedAt;
+    }
+
+    protected override void InitNew(ClientEntry c) => c.Type = "WIRED";
+
+    protected override string? Validate(ClientEntry c) =>
+        string.IsNullOrWhiteSpace(c.Name) ? "Name ist ein Pflichtfeld." : null;
+
+    protected override string DisplayName(ClientEntry c) => c.Name;
+}

@@ -1,0 +1,89 @@
+@page "/devices"
+@inherits ListPageBase<DeviceEntry>
+
+<PageTitle>Geräte – HomelabAtlas</PageTitle>
+
+<h1>Geräte</h1>
+
+<FilterBar Controllers="ControllerList" @bind-ControllerId="ControllerFilter" @bind-Search="Search">
+    <button class="btn primary" @onclick="NewItem">+ Gerät hinzufügen</button>
+</FilterBar>
+
+<DataGrid TItem="DeviceEntry" Items="Filtered" Columns="Columns" Key="x => x.Id"
+          RowClass="RowCss" CanEdit="IsEditable" OnEdit="EditItem" OnDelete="DeleteAsync">
+    <DetailTemplate Context="d">
+        <RowDetails T="DeviceEntry" Item="d" />
+    </DetailTemplate>
+</DataGrid>
+
+@if (Editing is not null)
+{
+    <EditDialog Title="@EditTitle" Error="@EditError" OnSave="SaveAsync" OnCancel="CancelEdit">
+        <SiteSelect Sites="SiteList" @bind-Value="Editing.SiteId" />
+        <label>Name *<input @bind="Editing.Name" placeholder="z. B. SW-Halle2-01" /></label>
+        <label>Gerätetyp<input @bind="Editing.DeviceType" list="device-types" placeholder="z. B. Switch" /></label>
+        <datalist id="device-types">
+            @foreach (var t in DeviceTypes) { <option value="@t"></option> }
+        </datalist>
+        <label>Hersteller<input @bind="Editing.Manufacturer" placeholder="z. B. Cisco, HPE, Fortinet" /></label>
+        <label>Modell<input @bind="Editing.Model" /></label>
+        <label>IP-Adresse<input @bind="Editing.IpAddress" placeholder="10.20.30.5" /></label>
+        <label>MAC-Adresse<input @bind="Editing.MacAddress" placeholder="aa:bb:cc:dd:ee:ff" /></label>
+        <label>Status<input @bind="Editing.State" list="device-states" /></label>
+        <datalist id="device-states">
+            <option value="ONLINE"></option><option value="OFFLINE"></option><option value="GEPLANT"></option><option value="AUSSER BETRIEB"></option>
+        </datalist>
+        <label>Firmware<input @bind="Editing.FirmwareVersion" /></label>
+        <label>Einbauort (Raum / Rack)<input @bind="Editing.Location" placeholder="z. B. Serverraum 1, Rack A, HE 12" /></label>
+        <label>Funktionen<input @bind="Editing.Features" placeholder="z. B. switching, routing" /></label>
+        <label class="wide">Notizen<textarea rows="3" @bind="Editing.Notes"></textarea></label>
+    </EditDialog>
+}
+
+@code {
+    private static readonly string[] DeviceTypes =
+        ["Switch", "Router", "Firewall", "Access Point", "Server", "NAS", "Drucker", "Kamera", "SPS / Steuerung", "Scanner", "USV", "Sonstiges"];
+
+    protected override string EntityLabel => "Gerät";
+
+    protected override List<GridColumn<DeviceEntry>> BuildColumns() =>
+    [
+        SiteColumn(),
+        new() { Title = "Name", Value = d => d.Name, Template = d => @<b>@d.Name</b> },
+        new() { Title = "Typ", Value = d => d.DeviceType, SelectFilter = true },
+        new() { Title = "Hersteller", Value = d => d.Manufacturer, SelectFilter = true },
+        new() { Title = "Modell", Value = d => d.Model },
+        IpColumn("IP", d => d.IpAddress),
+        new() { Title = "MAC", Value = d => d.MacAddress, CssClass = "mono" },
+        new() { Title = "Status", Value = d => d.State, SelectFilter = true, Template = d => @<StatusBadge Status="@d.State" Fallback="–" /> },
+        new() { Title = "Firmware", Value = d => d.FirmwareVersion },
+        new() { Title = "Einbauort", Value = d => d.Location },
+        SourceColumn(),
+        NotesColumn()
+    ];
+
+    protected override bool Matches(DeviceEntry d, string t) =>
+        Has(d.Name, t) || Has(d.Model, t) || Has(d.IpAddress, t) || Has(d.MacAddress, t) || Has(d.FirmwareVersion, t)
+        || Has(d.Manufacturer, t) || Has(d.DeviceType, t) || Has(d.Location, t);
+
+    protected override void CopyEditable(DeviceEntry f, DeviceEntry t)
+    {
+        t.Name = f.Name.Trim();
+        t.DeviceType = Fmt.Clean(f.DeviceType);
+        t.Manufacturer = Fmt.Clean(f.Manufacturer);
+        t.Model = Fmt.Clean(f.Model);
+        t.IpAddress = Fmt.Clean(f.IpAddress);
+        t.MacAddress = Fmt.Clean(f.MacAddress)?.ToLowerInvariant();
+        t.State = Fmt.Clean(f.State);
+        t.FirmwareVersion = Fmt.Clean(f.FirmwareVersion);
+        t.Location = Fmt.Clean(f.Location);
+        t.Features = Fmt.Clean(f.Features);
+    }
+
+    protected override void InitNew(DeviceEntry d) => d.State = "ONLINE";
+
+    protected override string? Validate(DeviceEntry d) =>
+        string.IsNullOrWhiteSpace(d.Name) ? "Name ist ein Pflichtfeld." : null;
+
+    protected override string DisplayName(DeviceEntry d) => d.Name;
+}

@@ -1,0 +1,100 @@
+@page "/"
+@inject IDbContextFactory<HomelabAtlasDbContext> DbFactory
+@inject SyncService Sync
+
+<PageTitle>Übersicht – HomelabAtlas</PageTitle>
+
+<h1>Übersicht</h1>
+
+<div class="toolbar">
+    <button class="btn primary" @onclick="SyncAll" disabled="@busy">@(busy ? "Synchronisiere …" : "Alle UniFi-Controller synchronisieren")</button>
+    <a class="btn" href="export/markdown" download data-enhance-nav="false">Gesamtdoku exportieren (.md)</a>
+</div>
+
+@if (stats.Count == 0)
+{
+    <p class="muted">Noch keine Standorte angelegt. <a href="controllers">Jetzt UCG Fiber oder manuellen Standort hinzufügen →</a></p>
+}
+
+<div class="cards">
+    @foreach (var s in stats)
+    {
+        <div class="card">
+            <div class="card-head">
+                <h2>@s.Controller.Name</h2>
+                @if (s.Controller.IsManual)
+                {
+                    <StatusBadge Status="Manuell" />
+                }
+                else
+                {
+                    <StatusBadge Status="@s.Controller.LastSyncStatus" />
+                }
+            </div>
+            <div class="muted">
+                @(s.Controller.IsManual ? "Manueller Standort" : s.Controller.Host)
+                @if (!string.IsNullOrWhiteSpace(s.Controller.Location)) { <text> · @s.Controller.Location</text> }
+                @if (!string.IsNullOrWhiteSpace(s.Controller.ApplicationVersion)) { <text> · Network @s.Controller.ApplicationVersion</text> }
+            </div>
+            <div class="kpis">
+                <a href="networks"><b>@s.Networks</b><span>Netzwerke</span></a>
+                <a href="devices"><b>@s.Devices</b><span>Geräte</span></a>
+                <a href="clients"><b>@s.Clients</b><span>Clients</span></a>
+                <a href="firewall"><b>@s.Policies</b><span>FW-Regeln</span></a>
+            </div>
+            <div class="muted small">
+                @s.Sites Site(s) · davon manuell: @s.Manual Einträge
+                @if (!s.Controller.IsManual) { <text> · letzter Sync: @Fmt.Time(s.Controller.LastSyncUtc)</text> }
+            </div>
+            @if (!string.IsNullOrEmpty(s.Controller.LastSyncError))
+            {
+                <pre class="warnbox">@s.Controller.LastSyncError</pre>
+            }
+            <div class="toolbar">
+                <a class="btn small" href="@($"export/markdown?controllerId={s.Controller.Id}")" download data-enhance-nav="false">Doku dieses Standorts</a>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private sealed record Stat(UnifiController Controller, int Sites, int Networks, int Devices, int Clients, int Policies, int Manual);
+
+    private List<Stat> stats = new();
+    private bool busy;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var controllers = await db.Controllers.AsNoTracking().OrderBy(c => c.Name).ToListAsync();
+        var result = new List<Stat>();
+        foreach (var c in controllers)
+        {
+            var manual =
+                await db.Networks.CountAsync(x => x.Site!.ControllerId == c.Id && x.IsManual)
+                + await db.Devices.CountAsync(x => x.Site!.ControllerId == c.Id && x.IsManual)
+                + await db.Clients.CountAsync(x => x.Site!.ControllerId == c.Id && x.IsManual)
+                + await db.FirewallZones.CountAsync(x => x.Site!.ControllerId == c.Id && x.IsManual)
+                + await db.FirewallPolicies.CountAsync(x => x.Site!.ControllerId == c.Id && x.IsManual);
+
+            result.Add(new Stat(c,
+                await db.Sites.CountAsync(x => x.ControllerId == c.Id),
+                await db.Networks.CountAsync(x => x.Site!.ControllerId == c.Id),
+                await db.Devices.CountAsync(x => x.Site!.ControllerId == c.Id),
+                await db.Clients.CountAsync(x => x.Site!.ControllerId == c.Id),
+                await db.FirewallPolicies.CountAsync(x => x.Site!.ControllerId == c.Id),
+                manual));
+        }
+        stats = result;
+    }
+
+    private async Task SyncAll()
+    {
+        busy = true;
+        try { await Sync.SyncAllAsync(CancellationToken.None); }
+        finally { busy = false; }
+        await LoadAsync();
+    }
+}

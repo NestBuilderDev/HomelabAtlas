@@ -1,0 +1,18 @@
+<label>Standort / Site *
+    <select value="@Value" @onchange="Changed">
+        <option value="0">– bitte wählen –</option>
+        @foreach (var s in Sites)
+        {
+            <option value="@s.Id">@s.Controller?.Name / @s.Name</option>
+        }
+    </select>
+</label>
+
+@code {
+    [Parameter] public List<UnifiSite> Sites { get; set; } = new();
+    [Parameter] public int Value { get; set; }
+    [Parameter] public EventCallback<int> ValueChanged { get; set; }
+
+    private Task Changed(ChangeEventArgs e) =>
+        ValueChanged.InvokeAsync(int.TryParse(e.Value?.ToString(), out var v) ? v : 0);
+}

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/ProjectFiles/">
+    <File Path=".dockerignore" />
+    <File Path="docker-compose.yml" />
+    <File Path="Dockerfile" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="src/HomelabAtlas/HomelabAtlas.csproj" />
+</Solution>

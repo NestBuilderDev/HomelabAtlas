@@ -1,0 +1,67 @@
+@typeparam T where T : SyncedEntity
+@inject IDbContextFactory<HomelabAtlasDbContext> DbFactory
+
+<div class="details-grid">
+    <div>
+        <h3>Notizen @(Item.IsManual ? "" : "(bleiben beim Sync erhalten)")</h3>
+        <textarea rows="6" @bind="notes" placeholder="z. B. Zweck, Verantwortlicher, Ticket-Nr. …"></textarea>
+        <div class="toolbar">
+            <button class="btn primary small" @onclick="SaveNotes">Notiz speichern</button>
+            @if (saved)
+            {
+                <span class="ok-text">gespeichert ✓</span>
+            }
+        </div>
+        <div class="muted small">
+            @if (Item.IsManual)
+            {
+                <text>Manuell angelegt am @Fmt.Time(Item.FirstSeenUtc) · zuletzt geändert @Fmt.Time(Item.LastSeenUtc)</text>
+            }
+            else
+            {
+                <text>UniFi-ID: @Item.ExternalId<br />zuerst gesehen: @Fmt.Time(Item.FirstSeenUtc) · zuletzt: @Fmt.Time(Item.LastSeenUtc)</text>
+            }
+        </div>
+    </div>
+    <div>
+        @if (Item.IsManual)
+        {
+            <h3>Manueller Eintrag</h3>
+            <p class="muted">Dieser Eintrag stammt nicht aus UniFi und wird vom Sync nicht verändert. Bearbeiten über ✎.</p>
+        }
+        else
+        {
+            <h3>Rohdaten (UniFi API)</h3>
+            <pre class="json">@pretty</pre>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public T Item { get; set; } = default!;
+
+    private string? notes;
+    private string pretty = "";
+    private bool saved;
+    private int loadedId = -1;
+
+    protected override void OnParametersSet()
+    {
+        if (loadedId == Item.Id) return;
+        loadedId = Item.Id;
+        notes = Item.Notes;
+        pretty = JsonExt.Pretty(Item.RawJson);
+        saved = false;
+    }
+
+    private async Task SaveNotes()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entity = await db.Set<T>().FindAsync(Item.Id);
+        if (entity is null) return;
+        entity.Notes = Fmt.Clean(notes);
+        await db.SaveChangesAsync();
+        Item.Notes = entity.Notes;
+        saved = true;
+    }
+}

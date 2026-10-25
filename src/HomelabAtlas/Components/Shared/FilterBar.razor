@@ -1,0 +1,25 @@
+<div class="filterbar">
+    <select value="@ControllerId" @onchange="OnControllerChanged">
+        <option value="0">Alle Standorte</option>
+        @foreach (var c in Controllers)
+        {
+            <option value="@c.Id">@c.Name</option>
+        }
+    </select>
+    <input type="search" placeholder="Volltextsuche …" value="@Search" @oninput="OnSearch" />
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public List<UnifiController> Controllers { get; set; } = new();
+    [Parameter] public int ControllerId { get; set; }
+    [Parameter] public EventCallback<int> ControllerIdChanged { get; set; }
+    [Parameter] public string Search { get; set; } = "";
+    [Parameter] public EventCallback<string> SearchChanged { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private Task OnControllerChanged(ChangeEventArgs e) =>
+        ControllerIdChanged.InvokeAsync(int.TryParse(e.Value?.ToString(), out var v) ? v : 0);
+
+    private Task OnSearch(ChangeEventArgs e) => SearchChanged.InvokeAsync(e.Value?.ToString() ?? "");
+}
