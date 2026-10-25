@@ -1,0 +1,226 @@
+@typeparam TItem
+
+@{
+    var view = View().ToList();
+    var colspan = Columns.Count + (HasActions ? 1 : 0);
+}
+
+<div class="grid-wrap">
+<table class="grid">
+    <thead>
+        <tr>
+            @foreach (var col in Columns)
+            {
+                <th class="sortable" title="Sortieren" @onclick="() => SortBy(col)">
+                    @col.Title<span class="sort">@SortIndicator(col)</span>
+                </th>
+            }
+            @if (HasActions)
+            {
+                <th class="actions-col"></th>
+            }
+        </tr>
+        <tr class="filter-row">
+            @for (var i = 0; i < Columns.Count; i++)
+            {
+                var idx = i;
+                var col = Columns[i];
+                <th>
+                    @if (col.Filterable && col.SelectFilter)
+                    {
+                        <select class="@(HasFilter(idx) ? "active" : "")" value="@GetFilter(idx)" @onchange="e => SetFilter(idx, e.Value?.ToString())">
+                            <option value="">Alle</option>
+                            @foreach (var v in DistinctValues(col))
+                            {
+                                <option value="@v">@(v == EmptyToken ? "(leer)" : v)</option>
+                            }
+                        </select>
+                    }
+                    else if (col.Filterable)
+                    {
+                        <input type="search" class="@(HasFilter(idx) ? "active" : "")" placeholder="Filter …"
+                               title="Text enthält · =exakt · !nicht enthalten"
+                               value="@GetFilter(idx)" @oninput="e => SetFilter(idx, e.Value?.ToString())" />
+                    }
+                </th>
+            }
+            @if (HasActions)
+            {
+                <th></th>
+            }
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in view)
+        {
+            var key = Key(item);
+            <tr class="@RowClass?.Invoke(item) @(DetailTemplate is null ? "" : "clickable")" @onclick="() => Toggle(key)">
+                @foreach (var col in Columns)
+                {
+                    <td class="@col.CssClass">
+                        @if (col.Template is not null)
+                        {
+                            @col.Template(item)
+                        }
+                        else
+                        {
+                            @col.Value(item)
+                        }
+                    </td>
+                }
+                @if (HasActions)
+                {
+                    <td class="actions" @onclick:stopPropagation="true">
+                        @if (ExtraActions is not null)
+                        {
+                            @ExtraActions(item)
+                        }
+                        @if (CanEdit?.Invoke(item) ?? true)
+                        {
+                            @if (OnEdit.HasDelegate)
+                            {
+                                <button class="btn small" title="Bearbeiten" @onclick="() => OnEdit.InvokeAsync(item)">✎</button>
+                            }
+                            @if (OnDelete.HasDelegate)
+                            {
+                                <button class="btn small danger" title="Löschen" @onclick="() => OnDelete.InvokeAsync(item)">🗑</button>
+                            }
+                        }
+                    </td>
+                }
+            </tr>
+            @if (DetailTemplate is not null && Equals(expanded, key))
+            {
+                <tr class="details"><td colspan="@colspan">@DetailTemplate(item)</td></tr>
+            }
+        }
+        @if (view.Count == 0)
+        {
+            <tr><td colspan="@colspan" class="muted">@EmptyText</td></tr>
+        }
+    </tbody>
+</table>
+</div>
+<div class="grid-footer muted small">
+    @view.Count von @items.Count Einträgen
+    @if (filters.Count > 0)
+    {
+        <button class="btn small" @onclick="ClearFilters">Spaltenfilter zurücksetzen</button>
+    }
+</div>
+
+@code {
+    private const string EmptyToken = "\u2205";
+
+    [Parameter, EditorRequired] public IEnumerable<TItem> Items { get; set; } = [];
+    [Parameter, EditorRequired] public List<GridColumn<TItem>> Columns { get; set; } = new();
+    [Parameter] public Func<TItem, object> Key { get; set; } = x => x!;
+    [Parameter] public RenderFragment<TItem>? DetailTemplate { get; set; }
+    [Parameter] public Func<TItem, string?>? RowClass { get; set; }
+    [Parameter] public Func<TItem, bool>? CanEdit { get; set; }
+    [Parameter] public EventCallback<TItem> OnEdit { get; set; }
+    [Parameter] public EventCallback<TItem> OnDelete { get; set; }
+    [Parameter] public RenderFragment<TItem>? ExtraActions { get; set; }
+    [Parameter] public string EmptyText { get; set; } = "Keine Einträge.";
+
+    private List<TItem> items = new();
+    private readonly Dictionary<int, string> filters = new();
+    private GridColumn<TItem>? sortColumn;
+    private bool sortDesc;
+    private object? expanded;
+
+    private bool HasActions => OnEdit.HasDelegate || OnDelete.HasDelegate || ExtraActions is not null;
+
+    protected override void OnParametersSet() => items = Items.ToList();
+
+    private IEnumerable<TItem> View()
+    {
+        IEnumerable<TItem> q = items;
+        foreach (var (idx, filter) in filters)
+        {
+            if (idx >= Columns.Count) continue;
+            var col = Columns[idx];
+            q = q.Where(x => Matches(col.Value(x), filter, col.SelectFilter));
+        }
+
+        if (sortColumn is not null)
+        {
+            var col = sortColumn;
+            Func<TItem, object?> key = col.SortKey ?? (x => col.Value(x));
+            q = sortDesc ? q.OrderByDescending(key, NullSafeComparer.Instance) : q.OrderBy(key, NullSafeComparer.Instance);
+        }
+        return q;
+    }
+
+    private static bool Matches(string? value, string filter, bool exactSelect)
+    {
+        if (exactSelect)
+            return filter == EmptyToken ? string.IsNullOrEmpty(value) : string.Equals(value, filter, StringComparison.OrdinalIgnoreCase);
+
+        var v = value ?? "";
+        if (filter.StartsWith('!'))
+        {
+            var f = filter[1..];
+            return f.Length == 0 || !v.Contains(f, StringComparison.OrdinalIgnoreCase);
+        }
+        if (filter.StartsWith('='))
+            return string.Equals(v, filter[1..], StringComparison.OrdinalIgnoreCase);
+        return v.Contains(filter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private IEnumerable<string> DistinctValues(GridColumn<TItem> col) => items
+        .Select(x => col.Value(x))
+        .Select(v => string.IsNullOrEmpty(v) ? EmptyToken : v)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(v => v == EmptyToken ? 1 : 0).ThenBy(v => v, StringComparer.CurrentCultureIgnoreCase);
+
+    private string GetFilter(int idx) => filters.TryGetValue(idx, out var f) ? f : "";
+    private bool HasFilter(int idx) => filters.ContainsKey(idx);
+
+    private void SetFilter(int idx, string? value)
+    {
+        if (string.IsNullOrEmpty(value)) filters.Remove(idx);
+        else filters[idx] = value;
+    }
+
+    private void ClearFilters() => filters.Clear();
+
+    private void SortBy(GridColumn<TItem> col)
+    {
+        if (sortColumn == col)
+        {
+            if (sortDesc) { sortColumn = null; sortDesc = false; } // 3. Klick: Sortierung aus
+            else sortDesc = true;
+        }
+        else
+        {
+            sortColumn = col;
+            sortDesc = false;
+        }
+    }
+
+    private string SortIndicator(GridColumn<TItem> col) => sortColumn != col ? "" : sortDesc ? " ▼" : " ▲";
+
+    private void Toggle(object key)
+    {
+        if (DetailTemplate is null) return;
+        expanded = Equals(expanded, key) ? null : key;
+    }
+
+    private sealed class NullSafeComparer : IComparer<object?>
+    {
+        public static readonly NullSafeComparer Instance = new();
+
+        public int Compare(object? a, object? b)
+        {
+            if (a is string sa && sa.Length == 0) a = null;
+            if (b is string sb && sb.Length == 0) b = null;
+            if (a is null && b is null) return 0;
+            if (a is null) return 1;   // leere Werte immer ans Ende
+            if (b is null) return -1;
+            if (a is string x && b is string y) return string.Compare(x, y, StringComparison.CurrentCultureIgnoreCase);
+            if (a.GetType() == b.GetType() && a is IComparable c) return c.CompareTo(b);
+            return string.Compare(a.ToString(), b.ToString(), StringComparison.CurrentCultureIgnoreCase);
+        }
+    }
+}

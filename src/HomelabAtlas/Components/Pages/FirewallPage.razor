@@ -1,0 +1,293 @@
+@page "/firewall"
+@inherits ListPageBase<FirewallPolicyEntry>
+
+<PageTitle>Firewall – HomelabAtlas</PageTitle>
+
+<h1>Firewall</h1>
+
+<FilterBar Controllers="ControllerList" @bind-ControllerId="ControllerFilter" @bind-Search="Search">
+    <button class="btn primary" @onclick="NewItem">+ Regel hinzufügen</button>
+    <button class="btn" @onclick="NewZone">+ Zone hinzufügen</button>
+</FilterBar>
+
+<h2>Zonen</h2>
+<DataGrid TItem="FirewallZoneEntry" Items="VisibleZones" Columns="zoneColumns" Key="x => x.Id"
+          RowClass="ZoneRowCss" CanEdit="z => z.IsManual" OnEdit="EditZone" OnDelete="DeleteZoneAsync">
+    <DetailTemplate Context="z">
+        <RowDetails T="FirewallZoneEntry" Item="z" />
+    </DetailTemplate>
+</DataGrid>
+
+<h2>Regeln / Policies</h2>
+<DataGrid TItem="FirewallPolicyEntry" Items="Filtered" Columns="Columns" Key="x => x.Id"
+          RowClass="PolicyRowCss" CanEdit="IsEditable" OnEdit="EditItem" OnDelete="DeleteAsync">
+    <DetailTemplate Context="p">
+        <RowDetails T="FirewallPolicyEntry" Item="p" />
+    </DetailTemplate>
+</DataGrid>
+
+@* ---------- Dialog: Regel ---------- *@
+@if (Editing is not null)
+{
+    <EditDialog Title="@EditTitle" Error="@EditError" OnSave="SaveAsync" OnCancel="CancelEdit">
+        <SiteSelect Sites="SiteList" @bind-Value="Editing.SiteId" />
+        <label>Name *<input @bind="Editing.Name" placeholder="z. B. Produktion → Server erlauben" /></label>
+        <label>Reihenfolge (#)<input type="number" @bind="Editing.Index" /></label>
+        <label>Aktion
+            <select @bind="Editing.Action">
+                <option value="ALLOW">ALLOW</option>
+                <option value="BLOCK">BLOCK</option>
+                <option value="REJECT">REJECT</option>
+            </select>
+        </label>
+        <label>Quell-Zone
+            <select @bind="Editing.SourceZoneExternalId">
+                <option value="">– keine / beliebig –</option>
+                @foreach (var z in ZonesOfSite(Editing.SiteId))
+                {
+                    <option value="@z.ExternalId">@z.Name</option>
+                }
+            </select>
+        </label>
+        <label>Ziel-Zone
+            <select @bind="Editing.DestinationZoneExternalId">
+                <option value="">– keine / beliebig –</option>
+                @foreach (var z in ZonesOfSite(Editing.SiteId))
+                {
+                    <option value="@z.ExternalId">@z.Name</option>
+                }
+            </select>
+        </label>
+        <label>Quell-Filter<input @bind="Editing.SourceFilter" placeholder="z. B. 10.20.30.0/24 oder Gerät/Gruppe" /></label>
+        <label>Ziel-Filter<input @bind="Editing.DestinationFilter" placeholder="z. B. 10.1.0.10, Port 443" /></label>
+        <label>IP / Protokoll<input @bind="Editing.IpScope" placeholder="z. B. IPv4 TCP 443" /></label>
+        <label>Verbindungsstatus<input @bind="Editing.ConnectionStates" placeholder="z. B. NEW, ESTABLISHED" /></label>
+        <label class="wide">Beschreibung<input @bind="Editing.Description" /></label>
+        <label class="check"><input type="checkbox" @bind="Editing.Enabled" /> aktiv</label>
+        <label class="check"><input type="checkbox" @bind="Editing.LoggingEnabled" /> Logging</label>
+        <label class="wide">Notizen<textarea rows="3" @bind="Editing.Notes"></textarea></label>
+    </EditDialog>
+}
+
+@* ---------- Dialog: Zone ---------- *@
+@if (zoneEditing is not null)
+{
+    <EditDialog Title="@(zoneEditing.Id == 0 ? "Zone hinzufügen" : "Zone bearbeiten")" Error="@zoneError" OnSave="SaveZoneAsync" OnCancel="() => zoneEditing = null">
+        <SiteSelect Sites="SiteList" Value="zoneEditing.SiteId" ValueChanged="ZoneSiteChanged" />
+        <label>Name *<input @bind="zoneEditing.Name" placeholder="z. B. Produktion" /></label>
+        <div class="wide">
+            <div class="label">Zugeordnete Netzwerke</div>
+            <div class="checklist">
+                @foreach (var n in networks.Where(n => n.SiteId == zoneEditing.SiteId).OrderBy(n => n.VlanId ?? 0))
+                {
+                    var id = n.ExternalId;
+                    <label class="check">
+                        <input type="checkbox" checked="@zoneNetworks.Contains(id)" @onchange="e => ToggleZoneNetwork(id, e)" />
+                        @n.Name @(n.VlanId is null ? "" : $"(VLAN {n.VlanId})")
+                    </label>
+                }
+                @if (!networks.Any(n => n.SiteId == zoneEditing.SiteId))
+                {
+                    <span class="muted">Keine Netzwerke in dieser Site.</span>
+                }
+            </div>
+        </div>
+        <label class="wide">Notizen<textarea rows="3" @bind="zoneEditing.Notes"></textarea></label>
+    </EditDialog>
+}
+
+@code {
+    private List<FirewallZoneEntry> zones = new();
+    private List<NetworkEntry> networks = new();
+    private Dictionary<(int, string), string> zoneNames = new();
+    private Dictionary<(int, string), string> networkNames = new();
+    private List<GridColumn<FirewallZoneEntry>> zoneColumns = new();
+
+    private FirewallZoneEntry? zoneEditing;
+    private HashSet<string> zoneNetworks = new();
+    private string? zoneError;
+
+    protected override string EntityLabel => "Firewall-Regel";
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        zoneColumns =
+        [
+            new() { Title = "Standort / Site", Value = z => $"{z.Site?.Controller?.Name} / {z.Site?.Name}", SelectFilter = true, CssClass = "muted" },
+            new() { Title = "Zone", Value = z => z.Name, Template = z => @<b>@z.Name</b> },
+            new() { Title = "Netzwerke", Value = NetworkNames },
+            new() { Title = "Herkunft", Value = z => z.Origin, SelectFilter = true },
+            new() { Title = "Quelle", Value = z => z.IsManual ? "Manuell" : "UniFi", SelectFilter = true,
+                    Template = z => @<StatusBadge Status="@(z.IsManual ? "Manuell" : "UniFi")" /> },
+            new() { Title = "Notiz", Value = z => string.IsNullOrEmpty(z.Notes) ? null : "📝", SelectFilter = true }
+        ];
+    }
+
+    protected override async Task OnLoadedAsync(HomelabAtlasDbContext db)
+    {
+        zones = await db.FirewallZones.AsNoTracking().Include(z => z.Site!).ThenInclude(s => s.Controller).ToListAsync();
+        zoneNames = zones.ToDictionary(z => (z.SiteId, z.ExternalId), z => z.Name);
+        networks = await db.Networks.AsNoTracking().ToListAsync();
+        networkNames = networks.ToDictionary(n => (n.SiteId, n.ExternalId), n => n.Name);
+    }
+
+    // ---------- Regeln ----------
+
+    protected override List<GridColumn<FirewallPolicyEntry>> BuildColumns() =>
+    [
+        SiteColumn(),
+        new() { Title = "#", Value = p => p.Index?.ToString(), SortKey = p => p.Index },
+        new() { Title = "Name", Value = p => p.Name, Template = p => @<div><b>@p.Name</b><div class="muted small">@p.Description</div></div> },
+        new() { Title = "Aktion", Value = p => p.Action, SelectFilter = true, Template = p => @<StatusBadge Status="@p.Action" Fallback="–" /> },
+        new() { Title = "Quell-Zone", Value = p => Zone(p.SiteId, p.SourceZoneExternalId), SelectFilter = true },
+        new() { Title = "Ziel-Zone", Value = p => Zone(p.SiteId, p.DestinationZoneExternalId), SelectFilter = true },
+        new() { Title = "Quell-Filter", Value = p => string.IsNullOrEmpty(p.SourceFilter) ? "alle" : p.SourceFilter, CssClass = "small mono" },
+        new() { Title = "Ziel-Filter", Value = p => string.IsNullOrEmpty(p.DestinationFilter) ? "alle" : p.DestinationFilter, CssClass = "small mono" },
+        new() { Title = "IP / Protokoll", Value = p => p.IpScope, CssClass = "small mono" },
+        new() { Title = "Status", Value = p => p.Enabled ? "aktiv" : "deaktiviert", SelectFilter = true },
+        new() { Title = "Log", Value = p => p.LoggingEnabled ? "✓" : null, SelectFilter = true },
+        new() { Title = "Herkunft", Value = p => p.Origin, SelectFilter = true },
+        SourceColumn(),
+        NotesColumn()
+    ];
+
+    private static string? PolicyRowCss(FirewallPolicyEntry p) =>
+        $"{(p.IsManual ? "manual-row" : "")} {(p.Enabled ? "" : "inactive")}".Trim();
+
+    private string Zone(int siteId, string? id) =>
+        string.IsNullOrEmpty(id) ? "–" : zoneNames.TryGetValue((siteId, id), out var n) ? n : id;
+
+    private IEnumerable<FirewallZoneEntry> ZonesOfSite(int siteId) =>
+        zones.Where(z => z.SiteId == siteId).OrderBy(z => z.Name);
+
+    protected override bool Matches(FirewallPolicyEntry p, string t) =>
+        Has(p.Name, t) || Has(p.Description, t) || Has(p.Action, t) || Has(p.SourceFilter, t) || Has(p.DestinationFilter, t)
+        || Has(p.IpScope, t) || Has(Zone(p.SiteId, p.SourceZoneExternalId), t) || Has(Zone(p.SiteId, p.DestinationZoneExternalId), t);
+
+    protected override void InitNew(FirewallPolicyEntry p)
+    {
+        p.Action = "ALLOW";
+        p.Index = Items.Where(x => x.SiteId == p.SiteId).Select(x => x.Index ?? 0).DefaultIfEmpty(0).Max() + 1;
+    }
+
+    protected override void CopyEditable(FirewallPolicyEntry f, FirewallPolicyEntry t)
+    {
+        t.Name = f.Name.Trim();
+        t.Description = Fmt.Clean(f.Description);
+        t.Index = f.Index;
+        t.Action = Fmt.Clean(f.Action);
+        t.SourceZoneExternalId = Fmt.Clean(f.SourceZoneExternalId);
+        t.DestinationZoneExternalId = Fmt.Clean(f.DestinationZoneExternalId);
+        t.SourceFilter = Fmt.Clean(f.SourceFilter);
+        t.DestinationFilter = Fmt.Clean(f.DestinationFilter);
+        t.IpScope = Fmt.Clean(f.IpScope);
+        t.ConnectionStates = Fmt.Clean(f.ConnectionStates);
+        t.Enabled = f.Enabled;
+        t.LoggingEnabled = f.LoggingEnabled;
+        t.Origin = "MANUAL";
+    }
+
+    protected override string? Validate(FirewallPolicyEntry p) =>
+        string.IsNullOrWhiteSpace(p.Name) ? "Name ist ein Pflichtfeld." : null;
+
+    protected override string DisplayName(FirewallPolicyEntry p) => p.Name;
+
+    // ---------- Zonen ----------
+
+    private IEnumerable<FirewallZoneEntry> VisibleZones => zones
+        .Where(z => ControllerFilter == 0 || z.Site?.ControllerId == ControllerFilter)
+        .Where(z => string.IsNullOrWhiteSpace(Search) || Has(z.Name, Search.Trim()) || Has(NetworkNames(z), Search.Trim()));
+
+    private static string? ZoneRowCss(FirewallZoneEntry z) => z.IsManual ? "manual-row" : null;
+
+    private string NetworkNames(FirewallZoneEntry z) =>
+        string.Join(", ", SplitIds(z.NetworkExternalIds)
+            .Select(id => networkNames.TryGetValue((z.SiteId, id), out var n) ? n : id));
+
+    private static IEnumerable<string> SplitIds(string? ids) =>
+        (ids ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+    private void NewZone()
+    {
+        var siteId = SiteList.FirstOrDefault(s => ControllerFilter != 0 && s.ControllerId == ControllerFilter)?.Id
+                     ?? SiteList.FirstOrDefault(s => s.Controller?.IsManual == true)?.Id
+                     ?? SiteList.FirstOrDefault()?.Id ?? 0;
+        zoneEditing = new FirewallZoneEntry { IsManual = true, SiteId = siteId };
+        zoneNetworks = new();
+        zoneError = SiteList.Count == 0 ? "Es gibt noch keinen Standort." : null;
+    }
+
+    private void EditZone(FirewallZoneEntry z)
+    {
+        zoneEditing = new FirewallZoneEntry { Id = z.Id, SiteId = z.SiteId, Name = z.Name, Notes = z.Notes, IsManual = true };
+        zoneNetworks = SplitIds(z.NetworkExternalIds).ToHashSet();
+        zoneError = null;
+    }
+
+    private void ZoneSiteChanged(int siteId)
+    {
+        if (zoneEditing is null) return;
+        zoneEditing.SiteId = siteId;
+        zoneNetworks.Clear(); // Netzwerke gehören immer zu genau einer Site
+    }
+
+    private void ToggleZoneNetwork(string id, ChangeEventArgs e)
+    {
+        if (e.Value is true) zoneNetworks.Add(id);
+        else zoneNetworks.Remove(id);
+    }
+
+    private async Task SaveZoneAsync()
+    {
+        if (zoneEditing is null) return;
+        if (zoneEditing.SiteId == 0) { zoneError = "Bitte einen Standort / eine Site wählen."; return; }
+        if (string.IsNullOrWhiteSpace(zoneEditing.Name)) { zoneError = "Name ist ein Pflichtfeld."; return; }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var now = DateTime.UtcNow;
+        FirewallZoneEntry? entity;
+        if (zoneEditing.Id == 0)
+        {
+            entity = new FirewallZoneEntry
+            {
+                ExternalId = "manual-" + Guid.NewGuid().ToString("N"), IsManual = true, FirstSeenUtc = now, Origin = "MANUAL"
+            };
+            db.FirewallZones.Add(entity);
+        }
+        else
+        {
+            entity = await db.FirewallZones.FindAsync(zoneEditing.Id);
+            if (entity is null || !entity.IsManual) { zoneError = "Zone nicht bearbeitbar."; return; }
+        }
+
+        entity.SiteId = zoneEditing.SiteId;
+        entity.Name = zoneEditing.Name.Trim();
+        entity.Notes = Fmt.Clean(zoneEditing.Notes);
+        entity.NetworkExternalIds = zoneNetworks.Count == 0 ? null : string.Join(", ", zoneNetworks);
+        entity.LastSeenUtc = now;
+        await db.SaveChangesAsync();
+
+        zoneEditing = null;
+        await LoadAsync();
+    }
+
+    private async Task DeleteZoneAsync(FirewallZoneEntry z)
+    {
+        if (!z.IsManual) return;
+        var used = Items.Count(p => p.SiteId == z.SiteId && (p.SourceZoneExternalId == z.ExternalId || p.DestinationZoneExternalId == z.ExternalId));
+        var msg = used > 0
+            ? $"Zone „{z.Name}“ wird von {used} Regel(n) verwendet. Trotzdem löschen?"
+            : $"Zone „{z.Name}“ wirklich löschen?";
+        if (!await JS.InvokeAsync<bool>("confirm", msg)) return;
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entity = await db.FirewallZones.FindAsync(z.Id);
+        if (entity is not null && entity.IsManual)
+        {
+            db.FirewallZones.Remove(entity);
+            await db.SaveChangesAsync();
+        }
+        await LoadAsync();
+    }
+}

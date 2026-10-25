@@ -1,0 +1,209 @@
+@page "/controllers"
+@inject IDbContextFactory<HomelabAtlasDbContext> DbFactory
+@inject SecretProtector Protector
+@inject UnifiClientFactory ClientFactory
+@inject SyncService Sync
+@inject IJSRuntime JS
+
+<PageTitle>Standorte / Controller – HomelabAtlas</PageTitle>
+
+<h1>Standorte / Controller</h1>
+
+<DataGrid TItem="UnifiController" Items="list" Columns="columns" Key="x => x.Id"
+          OnEdit="Edit" OnDelete="DeleteAsync" EmptyText="Noch keine Standorte vorhanden.">
+    <ExtraActions Context="c">
+        @if (!c.IsManual)
+        {
+            <button class="btn small" @onclick="() => TestAsync(c.Id)" disabled="@busy">Testen</button>
+            <button class="btn small primary" @onclick="() => SyncAsync(c.Id)" disabled="@busy">Sync</button>
+        }
+    </ExtraActions>
+</DataGrid>
+
+@if (message is not null)
+{
+    <div class="alert @(messageOk ? "ok" : "err")">@message</div>
+}
+
+<h2>@(form.Id == 0 ? "Neuen Standort / Controller hinzufügen" : $"Bearbeiten: {form.Name}")</h2>
+
+<div class="form">
+    @if (form.Id == 0)
+    {
+        <div class="wide segmented">
+            <label class="check"><input type="radio" name="kind" checked="@(!form.IsManual)" @onchange="() => form.IsManual = false" /> UniFi-Controller (UCG Fiber)</label>
+            <label class="check"><input type="radio" name="kind" checked="@form.IsManual" @onchange="() => form.IsManual = true" /> Manueller Standort (ohne UniFi)</label>
+        </div>
+    }
+    <label>Name *<input @bind="form.Name" placeholder="@(form.IsManual ? "z. B. Außenlager Murrhardt" : "UCG Fiber Standort A")" /></label>
+    <label>Standort / Adresse<input @bind="form.Location" placeholder="optional" /></label>
+    @if (form.IsManual)
+    {
+        <label>Site-Name<input @bind="form.SiteName" placeholder="Standard" /></label>
+    }
+    else
+    {
+        <label>Host / IP *<input @bind="form.Host" placeholder="192.168.1.1 oder https://ucg.firma.local" /></label>
+        <label>API-Key @(form.Id == 0 ? "*" : "")<input type="password" @bind="form.ApiKey" placeholder="@(form.Id == 0 ? "UniFi Network → Settings → Integrations" : "leer lassen = unverändert")" autocomplete="new-password" /></label>
+        <label class="check"><input type="checkbox" @bind="form.IgnoreTlsErrors" /> Selbstsigniertes Zertifikat akzeptieren</label>
+        <label class="check"><input type="checkbox" @bind="form.Enabled" /> In automatischen Sync einbeziehen</label>
+    }
+    <div class="toolbar">
+        <button class="btn primary" @onclick="SaveAsync">Speichern</button>
+        @if (form.Id != 0)
+        {
+            <button class="btn" @onclick="ResetForm">Abbrechen</button>
+        }
+    </div>
+</div>
+
+@code {
+    private sealed class FormModel
+    {
+        public int Id { get; set; }
+        public bool IsManual { get; set; }
+        public string Name { get; set; } = "";
+        public string Host { get; set; } = "";
+        public string? Location { get; set; }
+        public string ApiKey { get; set; } = "";
+        public string? SiteName { get; set; }
+        public bool IgnoreTlsErrors { get; set; } = true;
+        public bool Enabled { get; set; } = true;
+    }
+
+    private List<UnifiController> list = new();
+    private FormModel form = new();
+    private string? message;
+    private bool messageOk;
+    private bool busy;
+
+    private readonly List<GridColumn<UnifiController>> columns =
+    [
+        new() { Title = "Name", Value = c => c.Name, Template = c => @<b>@c.Name</b> },
+        new() { Title = "Typ", Value = c => c.IsManual ? "Manuell" : "UniFi", SelectFilter = true },
+        new() { Title = "Host", Value = c => c.IsManual ? null : c.Host, CssClass = "mono" },
+        new() { Title = "Standort", Value = c => c.Location },
+        new() { Title = "Auto-Sync", Value = c => c.IsManual ? null : Fmt.YesNo(c.Enabled), SelectFilter = true },
+        new() { Title = "Version", Value = c => c.ApplicationVersion },
+        new() { Title = "Letzter Sync", Value = c => c.IsManual ? null : Fmt.Time(c.LastSyncUtc), SortKey = c => c.LastSyncUtc },
+        new() { Title = "Status", Value = c => c.IsManual ? "Manuell" : c.LastSyncStatus, SelectFilter = true,
+                Template = c => @<StatusBadge Status="@(c.IsManual ? "Manuell" : c.LastSyncStatus)" /> }
+    ];
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        list = await db.Controllers.AsNoTracking().Include(c => c.Sites).OrderBy(c => c.Name).ToListAsync();
+    }
+
+    private void Show(bool ok, string text) { messageOk = ok; message = text; }
+
+    private void ResetForm() => form = new FormModel();
+
+    private void Edit(UnifiController c) => form = new FormModel
+    {
+        Id = c.Id, IsManual = c.IsManual, Name = c.Name, Host = c.Host, Location = c.Location,
+        IgnoreTlsErrors = c.IgnoreTlsErrors, Enabled = c.Enabled,
+        SiteName = c.Sites.FirstOrDefault()?.Name
+    };
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(form.Name)) { Show(false, "Name ist ein Pflichtfeld."); return; }
+        if (!form.IsManual && string.IsNullOrWhiteSpace(form.Host)) { Show(false, "Host ist ein Pflichtfeld."); return; }
+        if (!form.IsManual && form.Id == 0 && string.IsNullOrWhiteSpace(form.ApiKey))
+        {
+            Show(false, "Für einen neuen UniFi-Controller wird ein API-Key benötigt.");
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entity = form.Id == 0
+            ? new UnifiController { IsManual = form.IsManual }
+            : await db.Controllers.Include(c => c.Sites).FirstOrDefaultAsync(c => c.Id == form.Id);
+        if (entity is null) { Show(false, "Eintrag nicht gefunden."); return; }
+
+        entity.Name = form.Name.Trim();
+        entity.Location = Fmt.Clean(form.Location);
+
+        if (entity.IsManual)
+        {
+            entity.Enabled = false;
+            var siteName = Fmt.Clean(form.SiteName) ?? "Standard";
+            var site = entity.Sites.FirstOrDefault();
+            if (site is null)
+                entity.Sites.Add(new UnifiSite { ExternalId = "manual-default", Name = siteName, LastSeenUtc = DateTime.UtcNow });
+            else
+                site.Name = siteName;
+        }
+        else
+        {
+            entity.Host = form.Host.Trim();
+            entity.IgnoreTlsErrors = form.IgnoreTlsErrors;
+            entity.Enabled = form.Enabled;
+            if (!string.IsNullOrWhiteSpace(form.ApiKey))
+                entity.ApiKeyProtected = Protector.Protect(form.ApiKey.Trim());
+        }
+
+        if (form.Id == 0) db.Controllers.Add(entity);
+        await db.SaveChangesAsync();
+
+        Show(true, $"„{entity.Name}“ gespeichert.");
+        ResetForm();
+        await LoadAsync();
+    }
+
+    private async Task TestAsync(int id)
+    {
+        busy = true;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var c = await db.Controllers.FindAsync(id);
+            if (c is null) return;
+            var api = ClientFactory.Create(c);
+            var info = await api.GetInfoAsync(CancellationToken.None);
+            var sites = await api.GetSitesAsync(CancellationToken.None);
+            Show(true, $"Verbindung zu „{c.Name}“ OK – UniFi Network {info.Str("applicationVersion") ?? "?"}, {sites.Count} Site(s).");
+        }
+        catch (Exception ex)
+        {
+            Show(false, $"Verbindung fehlgeschlagen: {ex.Message}");
+        }
+        finally { busy = false; }
+    }
+
+    private async Task SyncAsync(int id)
+    {
+        busy = true;
+        Show(true, "Synchronisierung läuft …");
+        try
+        {
+            var r = await Sync.SyncControllerAsync(id, CancellationToken.None);
+            Show(r.Success, $"Sync: {r.Status}{(r.Message is null ? "" : " – " + r.Message)}");
+        }
+        catch (Exception ex)
+        {
+            Show(false, $"Sync fehlgeschlagen: {ex.Message}");
+        }
+        finally { busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(UnifiController c)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", $"„{c.Name}“ inkl. aller Daten, manueller Einträge und Notizen löschen?"))
+            return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entity = await db.Controllers.FindAsync(c.Id);
+        if (entity is not null)
+        {
+            db.Controllers.Remove(entity);
+            await db.SaveChangesAsync();
+        }
+        Show(true, $"„{c.Name}“ gelöscht.");
+        await LoadAsync();
+    }
+}

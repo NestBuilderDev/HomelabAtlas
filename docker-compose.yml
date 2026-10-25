@@ -1,0 +1,21 @@
+services:
+  homelabatlas:
+    build: .
+    image: homelabatlas:latest
+    container_name: homelabatlas
+    ports:
+      - "8080:8080"
+    volumes:
+      - homelabatlas-data:/data          # SQLite-DB + Data-Protection-Keys
+    environment:
+      - TZ=Europe/Berlin
+      - Sync__IntervalMinutes=60   # 0 = kein automatischer Sync
+      # Optional: Controller per Umgebungsvariablen vorbelegen (sonst über die Web-Oberfläche anlegen)
+      # - Unifi__Controllers__0__Name=UCG Fiber Standort A
+      # - Unifi__Controllers__0__Host=192.168.1.1
+      # - Unifi__Controllers__0__ApiKey=xxxxxxxxxxxxxxxx
+      # - Unifi__Controllers__0__Location=Backnang
+    restart: unless-stopped
+
+volumes:
+  homelabatlas-data:
