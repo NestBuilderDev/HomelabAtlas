@@ -6,11 +6,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>HomelabAtlas</RootNamespace>
     <AssemblyName>HomelabAtlas</AssemblyName>
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.*" />
+    <PackageReference Include="QuestPDF" Version="2026.9.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Language files: one JSON file per language (en.json, de.json, ...).
+         Removed first because the Web SDK already includes **/*.json as Content (avoids NETSDK1022 duplicates). -->
+    <Content Remove="Locales\**" />
+    <Content Include="Locales\*.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

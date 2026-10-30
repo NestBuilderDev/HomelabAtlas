@@ -6,15 +6,21 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - homelabatlas-data:/data          # SQLite-DB + Data-Protection-Keys
+      - homelabatlas-data:/data       # SQLite DB, data protection keys, optional custom locales
     environment:
       - TZ=Europe/Berlin
-      - Sync__IntervalMinutes=60   # 0 = kein automatischer Sync
-      # Optional: Controller per Umgebungsvariablen vorbelegen (sonst über die Web-Oberfläche anlegen)
-      # - Unifi__Controllers__0__Name=UCG Fiber Standort A
-      # - Unifi__Controllers__0__Host=192.168.1.1
-      # - Unifi__Controllers__0__ApiKey=xxxxxxxxxxxxxxxx
-      # - Unifi__Controllers__0__Location=Backnang
+      - Sync__IntervalMinutes=60      # 0 = no automatic sync
+      - Localization__DefaultCulture=en   # fallback language if the browser language is not available
+      # Optional: pre-configure gateways via environment variables (otherwise add them in the web UI)
+      # - Gateways__0__Kind=Unifi
+      # - Gateways__0__Name=UCG Fiber
+      # - Gateways__0__Host=192.168.1.1
+      # - Gateways__0__ApiKey=xxxxxxxxxxxxxxxx
+      # - Gateways__1__Kind=FritzBox
+      # - Gateways__1__Name=FRITZ!Box
+      # - Gateways__1__Host=192.168.178.1
+      # - Gateways__1__Username=homelabatlas
+      # - Gateways__1__Password=secret
     restart: unless-stopped
 
 volumes:

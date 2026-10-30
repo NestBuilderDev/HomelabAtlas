@@ -1,8 +1,10 @@
+@inject Texts L
+
 <div class="modal-backdrop">
     <div class="modal" @onkeydown="OnKey">
         <div class="modal-head">
             <h2>@Title</h2>
-            <button class="btn small" title="Schließen" @onclick="OnCancel">✕</button>
+            <button class="btn small" title="@L["Common.Close"]" @onclick="OnCancel">✕</button>
         </div>
         <div class="form">
             @ChildContent
@@ -12,8 +14,8 @@
             <div class="alert err">@Error</div>
         }
         <div class="toolbar">
-            <button class="btn primary" @onclick="OnSave">Speichern</button>
-            <button class="btn" @onclick="OnCancel">Abbrechen</button>
+            <button class="btn primary" @onclick="OnSave">@L["Common.Save"]</button>
+            <button class="btn" @onclick="OnCancel">@L["Common.Cancel"]</button>
         </div>
     </div>
 </div>

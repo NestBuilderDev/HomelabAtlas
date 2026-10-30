@@ -1,18 +1,18 @@
 @page "/clients"
 @inherits ListPageBase<ClientEntry>
 
-<PageTitle>Clients – HomelabAtlas</PageTitle>
+<PageTitle>@L["Nav.Clients"] – HomelabAtlas</PageTitle>
 
-<h1>Clients</h1>
+<h1>@L["Nav.Clients"]</h1>
 
-<FilterBar Controllers="ControllerList" @bind-ControllerId="ControllerFilter" @bind-Search="Search">
-    <button class="btn primary" @onclick="NewItem">+ Client hinzufügen</button>
+<FilterBar Gateways="GatewayList" @bind-GatewayId="GatewayFilter" @bind-Search="Search">
+    <button class="btn primary" @onclick="NewItem">+ @L["Clients.Add"]</button>
 </FilterBar>
 
 <DataGrid TItem="ClientEntry" Items="Filtered" Columns="Columns" Key="x => x.Id"
-          RowClass="RowCss" CanEdit="IsEditable" OnEdit="EditItem" OnDelete="DeleteAsync">
+          RowClass="ClientRowCss" CanEdit="IsEditable" OnEdit="EditItem" OnDelete="DeleteAsync">
     <DetailTemplate Context="c">
-        <RowDetails T="ClientEntry" Item="c" />
+        <RowDetails TEntity="ClientEntry" Item="c" />
     </DetailTemplate>
 </DataGrid>
 
@@ -20,23 +20,23 @@
 {
     <EditDialog Title="@EditTitle" Error="@EditError" OnSave="SaveAsync" OnCancel="CancelEdit">
         <SiteSelect Sites="SiteList" @bind-Value="Editing.SiteId" />
-        <label>Name *<input @bind="Editing.Name" placeholder="z. B. PC-Werkstatt-03" /></label>
-        <label>Typ<input @bind="Editing.Type" list="client-types" /></label>
+        <label>@L["Field.Name"]<input @bind="Editing.Name" placeholder="@L["Clients.NamePh"]" /></label>
+        <label>@L["Field.ClientType"]<input @bind="Editing.Type" list="client-types" /></label>
         <datalist id="client-types">
             <option value="WIRED"></option><option value="WIRELESS"></option><option value="VPN"></option>
         </datalist>
-        <label>IP-Adresse<input @bind="Editing.IpAddress" /></label>
-        <label>MAC-Adresse<input @bind="Editing.MacAddress" /></label>
-        <label>Uplink-Gerät
+        <label>@L["Field.Ip"]<input @bind="Editing.IpAddress" /></label>
+        <label>@L["Field.Mac"]<input @bind="Editing.MacAddress" /></label>
+        <label>@L["Field.UplinkDevice"]
             <select @bind="Editing.UplinkDeviceExternalId">
-                <option value="">– keins –</option>
+                <option value="">@L["Common.NoneOption"]</option>
                 @foreach (var d in devices.Where(d => d.SiteId == Editing.SiteId).OrderBy(d => d.Name))
                 {
-                    <option value="@d.ExternalId">@d.Name @(d.IsManual ? "(manuell)" : "")</option>
+                    <option value="@d.ExternalId">@d.Name @(d.IsManual ? L["Clients.ManualSuffix"] : "")</option>
                 }
             </select>
         </label>
-        <label class="wide">Notizen<textarea rows="3" @bind="Editing.Notes"></textarea></label>
+        <label class="wide">@L["Field.Notes"]<textarea rows="3" @bind="Editing.Notes"></textarea></label>
     </EditDialog>
 }
 
@@ -44,7 +44,7 @@
     private List<DeviceEntry> devices = new();
     private Dictionary<(int, string), string> deviceNames = new();
 
-    protected override string EntityLabel => "Client";
+    protected override string EntityLabel => L["Entity.Client"];
 
     protected override async Task OnLoadedAsync(HomelabAtlasDbContext db)
     {
@@ -56,15 +56,23 @@
         c.UplinkDeviceExternalId is null ? null
         : deviceNames.TryGetValue((c.SiteId, c.UplinkDeviceExternalId), out var n) ? n : c.UplinkDeviceExternalId;
 
+    private string? OnlineText(ClientEntry c) =>
+        c.Online is null ? null : c.Online.Value ? L["Clients.Online"] : L["Clients.Offline"];
+
+    private static string? ClientRowCss(ClientEntry c) =>
+        $"{(c.IsManual ? "manual-row" : "")} {(c.Online == false ? "inactive" : "")}".Trim();
+
     protected override List<GridColumn<ClientEntry>> BuildColumns() =>
     [
         SiteColumn(),
-        new() { Title = "Name", Value = c => c.Name, Template = c => @<b>@c.Name</b> },
-        new() { Title = "Typ", Value = c => c.Type, SelectFilter = true },
-        IpColumn("IP", c => c.IpAddress),
-        new() { Title = "MAC", Value = c => c.MacAddress, CssClass = "mono" },
-        new() { Title = "Uplink-Gerät", Value = Uplink, SelectFilter = true },
-        new() { Title = "Verbunden seit", Value = c => c.ConnectedAt },
+        new() { Title = L["Col.Name"], Value = c => c.Name, Template = c => @<b>@c.Name</b> },
+        new() { Title = L["Col.Online"], Value = OnlineText, SelectFilter = true,
+                Template = c => @<StatusBadge Status="@(c.Online is null ? null : c.Online.Value ? "ONLINE" : "OFFLINE")" Text="@OnlineText(c)" Fallback="–" /> },
+        new() { Title = L["Col.Type"], Value = c => c.Type, SelectFilter = true },
+        IpColumn(L["Col.Ip"], c => c.IpAddress),
+        new() { Title = L["Col.Mac"], Value = c => c.MacAddress, CssClass = "mono" },
+        new() { Title = L["Col.Uplink"], Value = Uplink, SelectFilter = true },
+        new() { Title = L["Col.ConnectedSince"], Value = c => c.ConnectedAt },
         SourceColumn(),
         NotesColumn()
     ];
@@ -80,12 +88,13 @@
         t.MacAddress = Fmt.Clean(f.MacAddress)?.ToLowerInvariant();
         t.UplinkDeviceExternalId = Fmt.Clean(f.UplinkDeviceExternalId);
         t.ConnectedAt = f.ConnectedAt;
+        t.Online = f.Online;
     }
 
     protected override void InitNew(ClientEntry c) => c.Type = "WIRED";
 
     protected override string? Validate(ClientEntry c) =>
-        string.IsNullOrWhiteSpace(c.Name) ? "Name ist ein Pflichtfeld." : null;
+        string.IsNullOrWhiteSpace(c.Name) ? L["Error.NameRequired"] : null;
 
     protected override string DisplayName(ClientEntry c) => c.Name;
 }

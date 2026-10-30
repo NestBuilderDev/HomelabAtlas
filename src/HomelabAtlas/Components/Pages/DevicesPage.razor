@@ -1,18 +1,18 @@
 @page "/devices"
 @inherits ListPageBase<DeviceEntry>
 
-<PageTitle>Geräte – HomelabAtlas</PageTitle>
+<PageTitle>@L["Nav.Devices"] – HomelabAtlas</PageTitle>
 
-<h1>Geräte</h1>
+<h1>@L["Nav.Devices"]</h1>
 
-<FilterBar Controllers="ControllerList" @bind-ControllerId="ControllerFilter" @bind-Search="Search">
-    <button class="btn primary" @onclick="NewItem">+ Gerät hinzufügen</button>
+<FilterBar Gateways="GatewayList" @bind-GatewayId="GatewayFilter" @bind-Search="Search">
+    <button class="btn primary" @onclick="NewItem">+ @L["Devices.Add"]</button>
 </FilterBar>
 
 <DataGrid TItem="DeviceEntry" Items="Filtered" Columns="Columns" Key="x => x.Id"
           RowClass="RowCss" CanEdit="IsEditable" OnEdit="EditItem" OnDelete="DeleteAsync">
     <DetailTemplate Context="d">
-        <RowDetails T="DeviceEntry" Item="d" />
+        <RowDetails TEntity="DeviceEntry" Item="d" />
     </DetailTemplate>
 </DataGrid>
 
@@ -20,44 +20,52 @@
 {
     <EditDialog Title="@EditTitle" Error="@EditError" OnSave="SaveAsync" OnCancel="CancelEdit">
         <SiteSelect Sites="SiteList" @bind-Value="Editing.SiteId" />
-        <label>Name *<input @bind="Editing.Name" placeholder="z. B. SW-Halle2-01" /></label>
-        <label>Gerätetyp<input @bind="Editing.DeviceType" list="device-types" placeholder="z. B. Switch" /></label>
+        <label>@L["Field.Name"]<input @bind="Editing.Name" placeholder="@L["Devices.NamePh"]" /></label>
+        <label>@L["Field.DeviceType"]<input @bind="Editing.DeviceType" list="device-types" /></label>
         <datalist id="device-types">
-            @foreach (var t in DeviceTypes) { <option value="@t"></option> }
+            @foreach (var key in DeviceTypeKeys)
+            {
+                <option value="@L[key]"></option>
+            }
         </datalist>
-        <label>Hersteller<input @bind="Editing.Manufacturer" placeholder="z. B. Cisco, HPE, Fortinet" /></label>
-        <label>Modell<input @bind="Editing.Model" /></label>
-        <label>IP-Adresse<input @bind="Editing.IpAddress" placeholder="10.20.30.5" /></label>
-        <label>MAC-Adresse<input @bind="Editing.MacAddress" placeholder="aa:bb:cc:dd:ee:ff" /></label>
-        <label>Status<input @bind="Editing.State" list="device-states" /></label>
+        <label>@L["Field.Manufacturer"]<input @bind="Editing.Manufacturer" placeholder="Cisco, HPE, Synology, AVM …" /></label>
+        <label>@L["Field.Model"]<input @bind="Editing.Model" /></label>
+        <label>@L["Field.Ip"]<input @bind="Editing.IpAddress" placeholder="10.20.30.5" /></label>
+        <label>@L["Field.Mac"]<input @bind="Editing.MacAddress" placeholder="aa:bb:cc:dd:ee:ff" /></label>
+        <label>@L["Field.State"]<input @bind="Editing.State" list="device-states" /></label>
         <datalist id="device-states">
-            <option value="ONLINE"></option><option value="OFFLINE"></option><option value="GEPLANT"></option><option value="AUSSER BETRIEB"></option>
+            <option value="ONLINE"></option><option value="OFFLINE"></option><option value="PLANNED"></option><option value="DECOMMISSIONED"></option>
         </datalist>
-        <label>Firmware<input @bind="Editing.FirmwareVersion" /></label>
-        <label>Einbauort (Raum / Rack)<input @bind="Editing.Location" placeholder="z. B. Serverraum 1, Rack A, HE 12" /></label>
-        <label>Funktionen<input @bind="Editing.Features" placeholder="z. B. switching, routing" /></label>
-        <label class="wide">Notizen<textarea rows="3" @bind="Editing.Notes"></textarea></label>
+        <label>@L["Field.Firmware"]<input @bind="Editing.FirmwareVersion" /></label>
+        <label>@L["Field.MountLocation"]<input @bind="Editing.Location" placeholder="@L["Devices.LocationPh"]" /></label>
+        <label>@L["Field.Features"]<input @bind="Editing.Features" placeholder="switching, routing, PoE" /></label>
+        <label class="wide">@L["Field.Notes"]<textarea rows="3" @bind="Editing.Notes"></textarea></label>
     </EditDialog>
 }
 
 @code {
-    private static readonly string[] DeviceTypes =
-        ["Switch", "Router", "Firewall", "Access Point", "Server", "NAS", "Drucker", "Kamera", "SPS / Steuerung", "Scanner", "USV", "Sonstiges"];
+    private static readonly string[] DeviceTypeKeys =
+    [
+        "DeviceType.Switch", "DeviceType.Router", "DeviceType.Firewall", "DeviceType.AccessPoint", "DeviceType.Server",
+        "DeviceType.Nas", "DeviceType.Printer", "DeviceType.Camera", "DeviceType.Plc", "DeviceType.Scanner",
+        "DeviceType.Ups", "DeviceType.Other"
+    ];
 
-    protected override string EntityLabel => "Gerät";
+    protected override string EntityLabel => L["Entity.Device"];
 
     protected override List<GridColumn<DeviceEntry>> BuildColumns() =>
     [
         SiteColumn(),
-        new() { Title = "Name", Value = d => d.Name, Template = d => @<b>@d.Name</b> },
-        new() { Title = "Typ", Value = d => d.DeviceType, SelectFilter = true },
-        new() { Title = "Hersteller", Value = d => d.Manufacturer, SelectFilter = true },
-        new() { Title = "Modell", Value = d => d.Model },
-        IpColumn("IP", d => d.IpAddress),
-        new() { Title = "MAC", Value = d => d.MacAddress, CssClass = "mono" },
-        new() { Title = "Status", Value = d => d.State, SelectFilter = true, Template = d => @<StatusBadge Status="@d.State" Fallback="–" /> },
-        new() { Title = "Firmware", Value = d => d.FirmwareVersion },
-        new() { Title = "Einbauort", Value = d => d.Location },
+        new() { Title = L["Col.Name"], Value = d => d.Name, Template = d => @<b>@d.Name</b> },
+        new() { Title = L["Col.Type"], Value = d => d.DeviceType, SelectFilter = true },
+        new() { Title = L["Col.Manufacturer"], Value = d => d.Manufacturer, SelectFilter = true },
+        new() { Title = L["Col.Model"], Value = d => d.Model },
+        IpColumn(L["Col.Ip"], d => d.IpAddress),
+        new() { Title = L["Col.Mac"], Value = d => d.MacAddress, CssClass = "mono" },
+        new() { Title = L["Col.State"], Value = d => d.State, SelectFilter = true,
+                Template = d => @<StatusBadge Status="@d.State" Fallback="–" /> },
+        new() { Title = L["Col.Firmware"], Value = d => d.FirmwareVersion },
+        new() { Title = L["Col.MountLocation"], Value = d => d.Location },
         SourceColumn(),
         NotesColumn()
     ];
@@ -83,7 +91,7 @@
     protected override void InitNew(DeviceEntry d) => d.State = "ONLINE";
 
     protected override string? Validate(DeviceEntry d) =>
-        string.IsNullOrWhiteSpace(d.Name) ? "Name ist ein Pflichtfeld." : null;
+        string.IsNullOrWhiteSpace(d.Name) ? L["Error.NameRequired"] : null;
 
     protected override string DisplayName(DeviceEntry d) => d.Name;
 }

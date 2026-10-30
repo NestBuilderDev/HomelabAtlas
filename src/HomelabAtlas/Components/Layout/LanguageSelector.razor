@@ -1,0 +1,30 @@
+@inject Texts L
+@inject TextCatalog Catalog
+@inject NavigationManager Nav
+
+@if (Catalog.Languages.Count > 1)
+{
+    <div class="lang">
+        <label title="@L["Nav.Language"]">
+            <span aria-hidden="true">🌐</span>
+            <select value="@L.CurrentLanguage" @onchange="Change" aria-label="@L["Nav.Language"]">
+                @foreach (var lang in Catalog.Languages)
+                {
+                    <option value="@lang.Code">@lang.Name</option>
+                }
+            </select>
+        </label>
+    </div>
+}
+
+@code {
+    private void Change(ChangeEventArgs e)
+    {
+        var culture = e.Value?.ToString();
+        if (string.IsNullOrEmpty(culture) || culture == L.CurrentLanguage) return;
+
+        // Reload via endpoint: sets the culture cookie, then returns to the current page
+        var redirect = "/" + Nav.ToBaseRelativePath(Nav.Uri);
+        Nav.NavigateTo($"culture/set?culture={Uri.EscapeDataString(culture)}&redirectUri={Uri.EscapeDataString(redirect)}", forceLoad: true);
+    }
+}

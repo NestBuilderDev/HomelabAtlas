@@ -1,44 +1,46 @@
-@typeparam T where T : SyncedEntity
+@typeparam TEntity where TEntity : SyncedEntity
+@inject Texts L
 @inject IDbContextFactory<HomelabAtlasDbContext> DbFactory
 
 <div class="details-grid">
     <div>
-        <h3>Notizen @(Item.IsManual ? "" : "(bleiben beim Sync erhalten)")</h3>
-        <textarea rows="6" @bind="notes" placeholder="z. B. Zweck, Verantwortlicher, Ticket-Nr. …"></textarea>
+        <h3>@L["Details.Notes"] @(Item.IsManual ? "" : L["Details.NotesKept"])</h3>
+        <textarea rows="6" @bind="notes" placeholder="@L["Details.NotesPlaceholder"]"></textarea>
         <div class="toolbar">
-            <button class="btn primary small" @onclick="SaveNotes">Notiz speichern</button>
+            <button class="btn primary small" @onclick="SaveNotes">@L["Details.SaveNote"]</button>
             @if (saved)
             {
-                <span class="ok-text">gespeichert ✓</span>
+                <span class="ok-text">@L["Details.Saved"]</span>
             }
         </div>
         <div class="muted small">
             @if (Item.IsManual)
             {
-                <text>Manuell angelegt am @Fmt.Time(Item.FirstSeenUtc) · zuletzt geändert @Fmt.Time(Item.LastSeenUtc)</text>
+                @(L["Details.ManualInfo", Fmt.Time(Item.FirstSeenUtc), Fmt.Time(Item.LastSeenUtc)])
             }
             else
             {
-                <text>UniFi-ID: @Item.ExternalId<br />zuerst gesehen: @Fmt.Time(Item.FirstSeenUtc) · zuletzt: @Fmt.Time(Item.LastSeenUtc)</text>
+                @(L["Details.ExternalId", Item.ExternalId])<br />
+                @(L["Details.Seen", Fmt.Time(Item.FirstSeenUtc), Fmt.Time(Item.LastSeenUtc)])
             }
         </div>
     </div>
     <div>
         @if (Item.IsManual)
         {
-            <h3>Manueller Eintrag</h3>
-            <p class="muted">Dieser Eintrag stammt nicht aus UniFi und wird vom Sync nicht verändert. Bearbeiten über ✎.</p>
+            <h3>@L["Details.ManualEntry"]</h3>
+            <p class="muted">@L["Details.ManualText"]</p>
         }
         else
         {
-            <h3>Rohdaten (UniFi API)</h3>
+            <h3>@(L["Details.RawData", L.Source(Item)])</h3>
             <pre class="json">@pretty</pre>
         }
     </div>
 </div>
 
 @code {
-    [Parameter, EditorRequired] public T Item { get; set; } = default!;
+    [Parameter, EditorRequired] public TEntity Item { get; set; } = default!;
 
     private string? notes;
     private string pretty = "";
@@ -57,7 +59,7 @@
     private async Task SaveNotes()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        var entity = await db.Set<T>().FindAsync(Item.Id);
+        var entity = await db.Set<TEntity>().FindAsync(Item.Id);
         if (entity is null) return;
         entity.Notes = Fmt.Clean(notes);
         await db.SaveChangesAsync();

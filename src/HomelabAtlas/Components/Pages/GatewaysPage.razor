@@ -1,0 +1,248 @@
+@page "/gateways"
+@inject Texts L
+@inject IDbContextFactory<HomelabAtlasDbContext> DbFactory
+@inject SecretProtector Protector
+@inject SyncService Sync
+@inject IJSRuntime JS
+
+<PageTitle>@L["Nav.Gateways"] – HomelabAtlas</PageTitle>
+
+<h1>@L["Nav.Gateways"]</h1>
+
+<DataGrid TItem="Gateway" Items="list" Columns="columns" Key="x => x.Id"
+          OnEdit="Edit" OnDelete="DeleteAsync" EmptyText="@L["Gateways.Empty"]">
+    <ExtraActions Context="g">
+        @if (!g.IsManual)
+        {
+            <button class="btn small" @onclick="() => TestAsync(g.Id)" disabled="@busy">@L["Gateways.Test"]</button>
+            <button class="btn small primary" @onclick="() => SyncAsync(g.Id)" disabled="@busy">@L["Gateways.Sync"]</button>
+        }
+    </ExtraActions>
+</DataGrid>
+
+@if (message is not null)
+{
+    <div class="alert @(messageOk ? "ok" : "err")">@message</div>
+}
+
+<h2>@(form.Id == 0 ? L["Gateways.AddTitle"] : L["Gateways.EditTitle", form.Name])</h2>
+
+<div class="form">
+    @if (form.Id == 0)
+    {
+        <div class="wide segmented">
+            <label class="check"><input type="radio" name="kind" checked="@(form.Kind == GatewayKind.Unifi)" @onchange="() => SetKind(GatewayKind.Unifi)" /> @L["Gateways.KindUnifi"]</label>
+            <label class="check"><input type="radio" name="kind" checked="@(form.Kind == GatewayKind.FritzBox)" @onchange="() => SetKind(GatewayKind.FritzBox)" /> @L["Gateways.KindFritzBox"]</label>
+            <label class="check"><input type="radio" name="kind" checked="@(form.Kind == GatewayKind.Manual)" @onchange="() => SetKind(GatewayKind.Manual)" /> @L["Gateways.KindManual"]</label>
+        </div>
+    }
+
+    <label>@L["Field.Name"]<input @bind="form.Name" placeholder="@NamePlaceholder" /></label>
+    <label>@L["Field.Address"]<input @bind="form.Location" placeholder="@L["Common.Optional"]" /></label>
+
+    @switch (form.Kind)
+    {
+        case GatewayKind.Manual:
+            <label>@L["Field.SiteName"]<input @bind="form.SiteName" placeholder="@L["Gateways.DefaultSiteName"]" /></label>
+            break;
+
+        case GatewayKind.Unifi:
+            <label>@L["Field.Host"]<input @bind="form.Host" placeholder="@L["Gateways.HostPhUnifi"]" /></label>
+            <label>@L["Field.ApiKey"] @(form.Id == 0 ? "*" : "")
+                <input type="password" @bind="form.Secret" autocomplete="new-password"
+                       placeholder="@(form.Id == 0 ? L["Gateways.ApiKeyPh"] : L["Gateways.SecretPhEdit"])" />
+            </label>
+            <label class="check"><input type="checkbox" @bind="form.IgnoreTlsErrors" /> @L["Gateways.AcceptSelfSigned"]</label>
+            <label class="check"><input type="checkbox" @bind="form.Enabled" /> @L["Gateways.IncludeAutoSync"]</label>
+            break;
+
+        case GatewayKind.FritzBox:
+            <label>@L["Field.Host"]<input @bind="form.Host" placeholder="@L["Gateways.HostPhFritz"]" /></label>
+            <label>@L["Field.Username"]<input @bind="form.Username" autocomplete="off" placeholder="@L["Gateways.UsernamePh"]" /></label>
+            <label>@L["Field.Password"] @(form.Id == 0 ? "*" : "")
+                <input type="password" @bind="form.Secret" autocomplete="new-password"
+                       placeholder="@(form.Id == 0 ? "" : L["Gateways.SecretPhEdit"])" />
+            </label>
+            <label class="check"><input type="checkbox" @bind="form.IgnoreTlsErrors" /> @L["Gateways.AcceptSelfSigned"]</label>
+            <label class="check"><input type="checkbox" @bind="form.Enabled" /> @L["Gateways.IncludeAutoSync"]</label>
+            <div class="wide hint">@L["Gateways.FritzHint"]</div>
+            break;
+    }
+
+    <div class="toolbar">
+        <button class="btn primary" @onclick="SaveAsync">@L["Common.Save"]</button>
+        @if (form.Id != 0)
+        {
+            <button class="btn" @onclick="ResetForm">@L["Common.Cancel"]</button>
+        }
+    </div>
+</div>
+
+@code {
+    private sealed class FormModel
+    {
+        public int Id { get; set; }
+        public GatewayKind Kind { get; set; } = GatewayKind.Unifi;
+        public string Name { get; set; } = "";
+        public string Host { get; set; } = "";
+        public string? Location { get; set; }
+        public string? Username { get; set; }
+        public string Secret { get; set; } = "";
+        public string? SiteName { get; set; }
+        public bool IgnoreTlsErrors { get; set; } = true;
+        public bool Enabled { get; set; } = true;
+    }
+
+    private List<Gateway> list = new();
+    private List<GridColumn<Gateway>> columns = new();
+    private FormModel form = new();
+    private string? message;
+    private bool messageOk;
+    private bool busy;
+
+    private string NamePlaceholder => form.Kind switch
+    {
+        GatewayKind.Manual => L["Gateways.NamePhManual"],
+        GatewayKind.FritzBox => L["Gateways.NamePhFritz"],
+        _ => L["Gateways.NamePhUnifi"]
+    };
+
+    protected override void OnInitialized()
+    {
+        columns =
+        [
+            new() { Title = L["Col.Name"], Value = g => g.Name, Template = g => @<b>@g.Name</b> },
+            new() { Title = L["Col.Type"], Value = g => L.Kind(g.Kind), SelectFilter = true,
+                    Template = g => @<span class="badge kind">@L.Kind(g.Kind)</span> },
+            new() { Title = L["Col.Host"], Value = g => g.IsManual ? null : g.Host, CssClass = "mono" },
+            new() { Title = L["Col.Location"], Value = g => g.Location },
+            new() { Title = L["Col.AutoSync"], Value = g => g.IsManual ? null : L.YesNo(g.Enabled), SelectFilter = true },
+            new() { Title = L["Col.Version"], Value = g => g.ApplicationVersion },
+            new() { Title = L["Col.LastSync"], Value = g => g.IsManual ? null : Fmt.Time(g.LastSyncUtc), SortKey = g => g.LastSyncUtc },
+            new() { Title = L["Col.Status"], Value = g => L.Status(g.IsManual ? "Manual" : g.LastSyncStatus ?? "Never"), SelectFilter = true,
+                    Template = g => @<StatusBadge Status="@(g.IsManual ? "Manual" : g.LastSyncStatus)" /> }
+        ];
+    }
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        list = await db.Gateways.AsNoTracking().Include(g => g.Sites).OrderBy(g => g.Name).ToListAsync();
+    }
+
+    private void Show(bool ok, string text) { messageOk = ok; message = text; }
+
+    private void ResetForm() => form = new FormModel();
+
+    private void SetKind(GatewayKind kind)
+    {
+        form.Kind = kind;
+        if (kind == GatewayKind.FritzBox && string.IsNullOrWhiteSpace(form.Host)) form.Host = "fritz.box";
+        if (kind == GatewayKind.FritzBox) form.IgnoreTlsErrors = true;
+    }
+
+    private void Edit(Gateway g) => form = new FormModel
+    {
+        Id = g.Id, Kind = g.Kind, Name = g.Name, Host = g.Host, Location = g.Location, Username = g.Username,
+        IgnoreTlsErrors = g.IgnoreTlsErrors, Enabled = g.Enabled,
+        SiteName = g.Sites.FirstOrDefault()?.Name
+    };
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(form.Name)) { Show(false, L["Error.NameRequired"]); return; }
+        if (form.Kind != GatewayKind.Manual && string.IsNullOrWhiteSpace(form.Host)) { Show(false, L["Gateways.HostRequired"]); return; }
+        if (form.Kind != GatewayKind.Manual && form.Id == 0 && string.IsNullOrWhiteSpace(form.Secret))
+        {
+            Show(false, form.Kind == GatewayKind.FritzBox ? L["Gateways.PasswordRequired"] : L["Gateways.ApiKeyRequired"]);
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entity = form.Id == 0
+            ? new Gateway { Kind = form.Kind }
+            : await db.Gateways.Include(g => g.Sites).FirstOrDefaultAsync(g => g.Id == form.Id);
+        if (entity is null) { Show(false, L["Gateways.NotFound"]); return; }
+
+        entity.Name = form.Name.Trim();
+        entity.Location = Fmt.Clean(form.Location);
+
+        if (entity.IsManual)
+        {
+            entity.Enabled = false;
+            var siteName = Fmt.Clean(form.SiteName) ?? L["Gateways.DefaultSiteName"];
+            var site = entity.Sites.FirstOrDefault();
+            if (site is null)
+                entity.Sites.Add(new Site { ExternalId = "manual-default", Name = siteName, LastSeenUtc = DateTime.UtcNow });
+            else
+                site.Name = siteName;
+        }
+        else
+        {
+            entity.Host = form.Host.Trim();
+            entity.Username = entity.Kind == GatewayKind.FritzBox ? Fmt.Clean(form.Username) : null;
+            entity.IgnoreTlsErrors = form.IgnoreTlsErrors;
+            entity.Enabled = form.Enabled;
+            if (!string.IsNullOrWhiteSpace(form.Secret))
+                entity.SecretProtected = Protector.Protect(form.Secret.Trim());
+        }
+
+        if (form.Id == 0) db.Gateways.Add(entity);
+        await db.SaveChangesAsync();
+
+        Show(true, L["Gateways.Saved", entity.Name]);
+        ResetForm();
+        await LoadAsync();
+    }
+
+    private async Task TestAsync(int id)
+    {
+        busy = true;
+        try
+        {
+            var name = list.FirstOrDefault(g => g.Id == id)?.Name ?? "";
+            var info = await Sync.TestAsync(id, CancellationToken.None);
+            Show(true, L["Gateways.TestOk", name, info]);
+        }
+        catch (Exception ex)
+        {
+            Show(false, L["Gateways.TestFailed", ex.Message]);
+        }
+        finally { busy = false; }
+    }
+
+    private async Task SyncAsync(int id)
+    {
+        busy = true;
+        Show(true, L["Gateways.SyncRunning"]);
+        try
+        {
+            var r = await Sync.SyncGatewayAsync(id, CancellationToken.None);
+            var text = L["Gateways.SyncResult", L.Status(r.Status)];
+            Show(r.Success, r.Message is null ? text : $"{text} – {r.Message}");
+        }
+        catch (Exception ex)
+        {
+            Show(false, L["Gateways.SyncFailed", ex.Message]);
+        }
+        finally { busy = false; }
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Gateway g)
+    {
+        if (!await JS.InvokeAsync<bool>("confirm", L["Gateways.ConfirmDelete", g.Name]))
+            return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entity = await db.Gateways.FindAsync(g.Id);
+        if (entity is not null)
+        {
+            db.Gateways.Remove(entity);
+            await db.SaveChangesAsync();
+        }
+        Show(true, L["Gateways.Deleted", g.Name]);
+        await LoadAsync();
+    }
+}

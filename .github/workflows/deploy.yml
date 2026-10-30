@@ -33,8 +33,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=raw,value=latest
+            type=raw,value=beta
+            type=raw,value=test
+            type=sha,format=short
 
       - name: Docker Image bauen und pushen
         uses: docker/build-push-action@v5

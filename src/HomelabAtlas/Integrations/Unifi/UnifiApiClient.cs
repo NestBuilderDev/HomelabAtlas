@@ -4,10 +4,12 @@ using System.Text.Json;
 using HomelabAtlas.Data;
 using HomelabAtlas.Services;
 
-namespace HomelabAtlas.Unifi;
+namespace HomelabAtlas.Integrations.Unifi;
 
 public sealed class UnifiApiException(HttpStatusCode statusCode, string path, string body)
-    : Exception($"UniFi API {(int)statusCode} {statusCode} bei '{path}': {Truncate(body)}")
+    : Exception(statusCode == HttpStatusCode.NotFound
+        ? $"endpoint '{path}' not available (check UniFi Network version)"
+        : $"UniFi API {(int)statusCode} {statusCode} at '{path}': {Truncate(body)}")
 {
     public HttpStatusCode StatusCode { get; } = statusCode;
 
@@ -15,8 +17,8 @@ public sealed class UnifiApiException(HttpStatusCode statusCode, string path, st
 }
 
 /// <summary>
-/// Client für die offizielle lokale UniFi Network Integration API
-/// (https://&lt;gateway&gt;/proxy/network/integration/v1/..., Header X-API-KEY).
+/// Client for the official local UniFi Network Integration API
+/// (https://&lt;gateway&gt;/proxy/network/integration/v1/..., header X-API-KEY).
 /// </summary>
 public sealed class UnifiApiClient(HttpClient http)
 {
@@ -67,7 +69,7 @@ public sealed class UnifiApiClient(HttpClient http)
         return doc.RootElement.Clone();
     }
 
-    /// <summary>Lädt alle Seiten (offset/limit) – Antwortformat: { offset, limit, count, totalCount, data: [...] }.</summary>
+    /// <summary>Loads all pages (offset/limit) – response format: { offset, limit, count, totalCount, data: [...] }.</summary>
     private async Task<List<JsonElement>> GetPagedAsync(string path, CancellationToken ct)
     {
         var result = new List<JsonElement>();
@@ -108,11 +110,11 @@ public sealed class UnifiClientFactory(IHttpClientFactory httpFactory, SecretPro
     public const string SecureClient = "unifi";
     public const string InsecureClient = "unifi-insecure";
 
-    public UnifiApiClient Create(UnifiController controller)
+    public UnifiApiClient Create(Gateway gateway)
     {
-        var http = httpFactory.CreateClient(controller.IgnoreTlsErrors ? InsecureClient : SecureClient);
-        http.BaseAddress = UnifiApiClient.BuildBaseUri(controller.Host);
-        http.DefaultRequestHeaders.Add("X-API-KEY", protector.Unprotect(controller.ApiKeyProtected));
+        var http = httpFactory.CreateClient(gateway.IgnoreTlsErrors ? InsecureClient : SecureClient);
+        http.BaseAddress = UnifiApiClient.BuildBaseUri(gateway.Host);
+        http.DefaultRequestHeaders.Add("X-API-KEY", protector.Unprotect(gateway.SecretProtected));
         http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         return new UnifiApiClient(http);
     }
