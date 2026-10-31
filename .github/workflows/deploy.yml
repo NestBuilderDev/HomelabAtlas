@@ -33,9 +33,9 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=beta
-            type=raw,value=test
-            type=sha,format=short
+            type=raw,value=beta,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=raw,value=test,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Docker Image bauen und pushen
         uses: docker/build-push-action@v5
