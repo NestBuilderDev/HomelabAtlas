@@ -138,8 +138,7 @@
 
     private void SetKind(GatewayKind kind)
     {
-        form.Kind = kind;
-        if (kind == GatewayKind.FritzBox && string.IsNullOrWhiteSpace(form.Host)) form.Host = "fritz.box";
+        form.Kind = kind; 
         if (kind == GatewayKind.FritzBox) form.IgnoreTlsErrors = true;
     }
 

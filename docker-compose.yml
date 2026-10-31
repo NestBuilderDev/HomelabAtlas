@@ -1,7 +1,6 @@
 services:
   homelabatlas:
-    build: .
-    image: homelabatlas:latest
+    image: ghcr.io/michi1983/homelabatlas:latest
     container_name: homelabatlas
     ports:
       - "8080:8080"
