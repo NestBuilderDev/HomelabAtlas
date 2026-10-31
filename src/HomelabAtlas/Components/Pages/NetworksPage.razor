@@ -1,18 +1,18 @@
 @page "/networks"
 @inherits ListPageBase<NetworkEntry>
 
-<PageTitle>Netzwerke &amp; VLANs – HomelabAtlas</PageTitle>
+<PageTitle>@L["Nav.Networks"] – HomelabAtlas</PageTitle>
 
-<h1>Netzwerke &amp; VLANs</h1>
+<h1>@L["Nav.Networks"]</h1>
 
-<FilterBar Controllers="ControllerList" @bind-ControllerId="ControllerFilter" @bind-Search="Search">
-    <button class="btn primary" @onclick="NewItem">+ Netzwerk hinzufügen</button>
+<FilterBar Gateways="GatewayList" @bind-GatewayId="GatewayFilter" @bind-Search="Search">
+    <button class="btn primary" @onclick="NewItem">+ @L["Networks.Add"]</button>
 </FilterBar>
 
 <DataGrid TItem="NetworkEntry" Items="Filtered" Columns="Columns" Key="x => x.Id"
           RowClass="RowCss" CanEdit="IsEditable" OnEdit="EditItem" OnDelete="DeleteAsync">
     <DetailTemplate Context="n">
-        <RowDetails T="NetworkEntry" Item="n" />
+        <RowDetails TEntity="NetworkEntry" Item="n" />
     </DetailTemplate>
 </DataGrid>
 
@@ -20,39 +20,45 @@
 {
     <EditDialog Title="@EditTitle" Error="@EditError" OnSave="SaveAsync" OnCancel="CancelEdit">
         <SiteSelect Sites="SiteList" @bind-Value="Editing.SiteId" />
-        <label>Name *<input @bind="Editing.Name" placeholder="z. B. Produktion" /></label>
-        <label>VLAN-ID<input type="number" min="1" max="4094" @bind="Editing.VlanId" /></label>
-        <label>Subnetz (CIDR)<input @bind="Editing.Subnet" placeholder="10.20.30.0/24" /></label>
-        <label>Gateway<input @bind="Editing.GatewayIp" placeholder="10.20.30.1" /></label>
-        <label>Typ / Verwaltung<input @bind="Editing.Management" list="mgmt-types" placeholder="z. B. Fremdnetz, Provider, Transfer" /></label>
-        <datalist id="mgmt-types">
-            <option value="Fremdnetz"></option><option value="Provider"></option><option value="Transfer"></option>
-            <option value="Management"></option><option value="DMZ"></option><option value="VPN"></option>
+        <label>@L["Field.Name"]<input @bind="Editing.Name" placeholder="@L["Networks.NamePh"]" /></label>
+        <label>@L["Field.VlanId"]<input type="number" min="1" max="4094" @bind="Editing.VlanId" /></label>
+        <label>@L["Field.Subnet"]<input @bind="Editing.Subnet" placeholder="10.20.30.0/24" /></label>
+        <label>@L["Field.Gateway"]<input @bind="Editing.GatewayIp" placeholder="10.20.30.1" /></label>
+        <label>@L["Field.Management"]<input @bind="Editing.Management" list="net-types" placeholder="@L["Networks.ManagementPh"]" /></label>
+        <datalist id="net-types">
+            @foreach (var key in NetworkTypeKeys)
+            {
+                <option value="@L[key]"></option>
+            }
         </datalist>
-        <label>DHCP<input @bind="Editing.DhcpMode" list="dhcp-modes" placeholder="z. B. SERVER, RELAY, keiner" /></label>
+        <label>@L["Field.Dhcp"]<input @bind="Editing.DhcpMode" list="dhcp-modes" placeholder="SERVER, RELAY, NONE" /></label>
         <datalist id="dhcp-modes">
-            <option value="SERVER"></option><option value="RELAY"></option><option value="keiner"></option>
+            <option value="SERVER"></option><option value="RELAY"></option><option value="NONE"></option>
         </datalist>
-        <label>DHCP-Bereich<input @bind="Editing.DhcpRange" placeholder="10.20.30.100 – 10.20.30.200" /></label>
-        <label class="check"><input type="checkbox" @bind="Editing.Enabled" /> aktiv</label>
-        <label class="wide">Notizen<textarea rows="3" @bind="Editing.Notes"></textarea></label>
+        <label>@L["Field.DhcpRange"]<input @bind="Editing.DhcpRange" placeholder="10.20.30.100 – 10.20.30.200" /></label>
+        <label class="check"><input type="checkbox" @bind="Editing.Enabled" /> @L["Field.Enabled"]</label>
+        <label class="wide">@L["Field.Notes"]<textarea rows="3" @bind="Editing.Notes"></textarea></label>
     </EditDialog>
 }
 
 @code {
-    protected override string EntityLabel => "Netzwerk";
+    private static readonly string[] NetworkTypeKeys =
+        ["NetType.External", "NetType.Provider", "NetType.Transfer", "NetType.Management", "NetType.Dmz", "NetType.Vpn", "NetType.Iot", "NetType.Guest"];
+
+    protected override string EntityLabel => L["Entity.Network"];
 
     protected override List<GridColumn<NetworkEntry>> BuildColumns() =>
     [
         SiteColumn(),
-        new() { Title = "Name", Value = n => n.Name, Template = n => @<span><b>@n.Name</b><span class="muted small">@(n.IsDefault ? " (Default)" : "")</span></span> },
-        new() { Title = "VLAN", Value = n => n.VlanId?.ToString(), SortKey = n => n.VlanId },
-        IpColumn("Subnetz", n => n.Subnet),
-        IpColumn("Gateway", n => n.GatewayIp),
-        new() { Title = "DHCP", Value = n => n.DhcpMode, SelectFilter = true },
-        new() { Title = "DHCP-Bereich", Value = n => n.DhcpRange, CssClass = "mono" },
-        new() { Title = "Typ", Value = n => n.Management, SelectFilter = true },
-        new() { Title = "Aktiv", Value = n => Fmt.YesNo(n.Enabled), SelectFilter = true },
+        new() { Title = L["Col.Name"], Value = n => n.Name,
+                Template = n => @<span><b>@n.Name</b><span class="muted small">@(n.IsDefault ? " " + L["Networks.Default"] : "")</span></span> },
+        new() { Title = L["Col.Vlan"], Value = n => n.VlanId?.ToString(), SortKey = n => n.VlanId },
+        IpColumn(L["Col.Subnet"], n => n.Subnet),
+        IpColumn(L["Col.Gateway"], n => n.GatewayIp),
+        new() { Title = L["Col.Dhcp"], Value = n => n.DhcpMode, SelectFilter = true },
+        new() { Title = L["Col.DhcpRange"], Value = n => n.DhcpRange, CssClass = "mono" },
+        new() { Title = L["Col.Type"], Value = n => n.Management, SelectFilter = true },
+        new() { Title = L["Col.Enabled"], Value = n => L.YesNo(n.Enabled), SelectFilter = true },
         SourceColumn(),
         NotesColumn()
     ];
@@ -74,8 +80,8 @@
 
     protected override string? Validate(NetworkEntry n)
     {
-        if (string.IsNullOrWhiteSpace(n.Name)) return "Name ist ein Pflichtfeld.";
-        if (n.VlanId is < 1 or > 4094) return "VLAN-ID muss zwischen 1 und 4094 liegen.";
+        if (string.IsNullOrWhiteSpace(n.Name)) return L["Error.NameRequired"];
+        if (n.VlanId is < 1 or > 4094) return L["Error.VlanRange"];
         return null;
     }
 

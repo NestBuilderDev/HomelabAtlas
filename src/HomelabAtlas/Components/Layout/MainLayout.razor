@@ -1,9 +1,18 @@
 @inherits LayoutComponentBase
+@inject Texts L
 
 <div class="app">
     <aside class="sidebar">
-        <div class="brand"><span class="logo">🗺️</span> Homelab<b>Atlas</b><small>Netzwerkdokumentation</small></div>
+        <div class="brand">
+            <span class="logo">🗺️</span> Homelab<b>Atlas</b>
+            <small>@L["App.Tagline"]</small>
+        </div>
         <NavMenu />
+        <div class="project-info">
+            <a class="project-link" href="https://github.com/Michi1983/HomelabAtlas" target="_blank" rel="noopener noreferrer">GitHub-Projekt</a>
+            <small class="app-version">v@((typeof(MainLayout).Assembly.GetName().Version)?.ToString())</small>
+        </div>
+        <LanguageSelector />
     </aside>
     <main class="content">
         @Body
@@ -11,5 +20,5 @@
 </div>
 
 <div id="blazor-error-ui">
-    Ein unerwarteter Fehler ist aufgetreten. <a href="" class="reload">Neu laden</a>
+    @L["Error.Unhandled"] <a href="" class="reload">@L["Error.Reload"]</a>
 </div>

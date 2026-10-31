@@ -1,15 +1,17 @@
-<label>Standort / Site *
+@inject Texts L
+
+<label>@L["Field.Site"]
     <select value="@Value" @onchange="Changed">
-        <option value="0">– bitte wählen –</option>
+        <option value="0">@L["Common.PleaseSelect"]</option>
         @foreach (var s in Sites)
         {
-            <option value="@s.Id">@s.Controller?.Name / @s.Name</option>
+            <option value="@s.Id">@s.Gateway?.Name / @s.Name</option>
         }
     </select>
 </label>
 
 @code {
-    [Parameter] public List<UnifiSite> Sites { get; set; } = new();
+    [Parameter] public List<Site> Sites { get; set; } = new();
     [Parameter] public int Value { get; set; }
     [Parameter] public EventCallback<int> ValueChanged { get; set; }
 

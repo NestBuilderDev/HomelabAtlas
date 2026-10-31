@@ -1,15 +1,20 @@
-<span class="badge @Css">@(Status ?? Fallback)</span>
+@inject Texts L
+
+<span class="badge @Css">@(string.IsNullOrEmpty(Status) ? (Fallback ?? L.Status("Never")) : (Text ?? L.Status(Status)))</span>
 
 @code {
+    /// <summary>Language-neutral status code (OK, Warning, Error, Manual, ALLOW, ONLINE, FORWARD, ...).</summary>
     [Parameter] public string? Status { get; set; }
-    [Parameter] public string Fallback { get; set; } = "nie synchronisiert";
+    /// <summary>Optional display text (otherwise the translated status).</summary>
+    [Parameter] public string? Text { get; set; }
+    [Parameter] public string? Fallback { get; set; }
 
     private string Css => Status switch
     {
-        "OK" or "ALLOW" or "ONLINE" => "ok",
-        "Warnung" => "warn",
-        "Fehler" or "BLOCK" or "REJECT" or "OFFLINE" => "err",
-        "Manuell" => "manual",
+        "OK" or "ALLOW" or "ONLINE" or "FORWARD" or "Online" => "ok",
+        "Warning" => "warn",
+        "Error" or "BLOCK" or "REJECT" or "OFFLINE" => "err",
+        "Manual" => "manual",
         _ => "neutral"
     };
 }

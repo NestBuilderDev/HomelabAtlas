@@ -1,64 +1,62 @@
 @page "/"
+@inject Texts L
 @inject IDbContextFactory<HomelabAtlasDbContext> DbFactory
 @inject SyncService Sync
 
-<PageTitle>Übersicht – HomelabAtlas</PageTitle>
+<PageTitle>@L["Nav.Overview"] – HomelabAtlas</PageTitle>
 
-<h1>Übersicht</h1>
+<h1>@L["Nav.Overview"]</h1>
 
 <div class="toolbar">
-    <button class="btn primary" @onclick="SyncAll" disabled="@busy">@(busy ? "Synchronisiere …" : "Alle UniFi-Controller synchronisieren")</button>
-    <a class="btn" href="export/markdown" download data-enhance-nav="false">Gesamtdoku exportieren (.md)</a>
+    <button class="btn primary" @onclick="SyncAll" disabled="@busy">@(busy ? L["Home.Syncing"] : L["Home.SyncAll"])</button>
+    <a class="btn" href="export/markdown" download data-enhance-nav="false">@L["Home.ExportAll"]</a>
+    <a class="btn" href="export/pdf" download data-enhance-nav="false">@L["Home.ExportAllPdf"]</a>
 </div>
 
 @if (stats.Count == 0)
 {
-    <p class="muted">Noch keine Standorte angelegt. <a href="controllers">Jetzt UCG Fiber oder manuellen Standort hinzufügen →</a></p>
+    <p class="muted">@L["Home.Empty"] <a href="gateways">@L["Home.EmptyLink"]</a></p>
 }
 
 <div class="cards">
     @foreach (var s in stats)
     {
+        var g = s.Gateway;
         <div class="card">
             <div class="card-head">
-                <h2>@s.Controller.Name</h2>
-                @if (s.Controller.IsManual)
-                {
-                    <StatusBadge Status="Manuell" />
-                }
-                else
-                {
-                    <StatusBadge Status="@s.Controller.LastSyncStatus" />
-                }
+                <h2>@g.Name</h2>
+                <StatusBadge Status="@(g.IsManual ? "Manual" : g.LastSyncStatus)" />
             </div>
             <div class="muted">
-                @(s.Controller.IsManual ? "Manueller Standort" : s.Controller.Host)
-                @if (!string.IsNullOrWhiteSpace(s.Controller.Location)) { <text> · @s.Controller.Location</text> }
-                @if (!string.IsNullOrWhiteSpace(s.Controller.ApplicationVersion)) { <text> · Network @s.Controller.ApplicationVersion</text> }
+                <span class="badge kind">@L.Kind(g.Kind)</span>
+                @if (!g.IsManual) { <text> @g.Host</text> }
+                @if (!string.IsNullOrWhiteSpace(g.Location)) { <text> · @g.Location</text> }
+                @if (!string.IsNullOrWhiteSpace(g.ApplicationVersion)) { <text> · @g.ApplicationVersion</text> }
             </div>
             <div class="kpis">
-                <a href="networks"><b>@s.Networks</b><span>Netzwerke</span></a>
-                <a href="devices"><b>@s.Devices</b><span>Geräte</span></a>
-                <a href="clients"><b>@s.Clients</b><span>Clients</span></a>
-                <a href="firewall"><b>@s.Policies</b><span>FW-Regeln</span></a>
+                <a href="networks?gatewayId=@g.Id"><b>@s.Networks</b><span>@L["Kpi.Networks"]</span></a>
+                <a href="devices?gatewayId=@g.Id"><b>@s.Devices</b><span>@L["Kpi.Devices"]</span></a>
+                <a href="clients?gatewayId=@g.Id"><b>@s.Clients</b><span>@L["Kpi.Clients"]</span></a>
+                <a href="firewall?gatewayId=@g.Id"><b>@s.Policies</b><span>@L["Kpi.Rules"]</span></a>
             </div>
             <div class="muted small">
-                @s.Sites Site(s) · davon manuell: @s.Manual Einträge
-                @if (!s.Controller.IsManual) { <text> · letzter Sync: @Fmt.Time(s.Controller.LastSyncUtc)</text> }
+                @(L["Home.SitesInfo", s.Sites, s.Manual])
+                @if (!g.IsManual) { <text> · @(L["Home.LastSync", Fmt.Time(g.LastSyncUtc)])</text> }
             </div>
-            @if (!string.IsNullOrEmpty(s.Controller.LastSyncError))
+            @if (!string.IsNullOrEmpty(g.LastSyncError))
             {
-                <pre class="warnbox">@s.Controller.LastSyncError</pre>
+                <pre class="warnbox">@g.LastSyncError</pre>
             }
             <div class="toolbar">
-                <a class="btn small" href="@($"export/markdown?controllerId={s.Controller.Id}")" download data-enhance-nav="false">Doku dieses Standorts</a>
+                <a class="btn small" href="@($"export/markdown?gatewayId={g.Id}")" download data-enhance-nav="false">@L["Home.ExportLocation"]</a>
+                <a class="btn small" href="@($"export/pdf?gatewayId={g.Id}")" download data-enhance-nav="false">@L["Home.ExportLocationPdf"]</a>
             </div>
         </div>
     }
 </div>
 
 @code {
-    private sealed record Stat(UnifiController Controller, int Sites, int Networks, int Devices, int Clients, int Policies, int Manual);
+    private sealed record Stat(Gateway Gateway, int Sites, int Networks, int Devices, int Clients, int Policies, int Manual);
 
     private List<Stat> stats = new();
     private bool busy;
@@ -68,23 +66,23 @@
     private async Task LoadAsync()
     {
         await using var db = await DbFactory.CreateDbContextAsync();
-        var controllers = await db.Controllers.AsNoTracking().OrderBy(c => c.Name).ToListAsync();
+        var gateways = await db.Gateways.AsNoTracking().OrderBy(g => g.Name).ToListAsync();
         var result = new List<Stat>();
-        foreach (var c in controllers)
+        foreach (var g in gateways)
         {
             var manual =
-                await db.Networks.CountAsync(x => x.Site!.ControllerId == c.Id && x.IsManual)
-                + await db.Devices.CountAsync(x => x.Site!.ControllerId == c.Id && x.IsManual)
-                + await db.Clients.CountAsync(x => x.Site!.ControllerId == c.Id && x.IsManual)
-                + await db.FirewallZones.CountAsync(x => x.Site!.ControllerId == c.Id && x.IsManual)
-                + await db.FirewallPolicies.CountAsync(x => x.Site!.ControllerId == c.Id && x.IsManual);
+                await db.Networks.CountAsync(x => x.Site!.GatewayId == g.Id && x.IsManual)
+                + await db.Devices.CountAsync(x => x.Site!.GatewayId == g.Id && x.IsManual)
+                + await db.Clients.CountAsync(x => x.Site!.GatewayId == g.Id && x.IsManual)
+                + await db.FirewallZones.CountAsync(x => x.Site!.GatewayId == g.Id && x.IsManual)
+                + await db.FirewallPolicies.CountAsync(x => x.Site!.GatewayId == g.Id && x.IsManual);
 
-            result.Add(new Stat(c,
-                await db.Sites.CountAsync(x => x.ControllerId == c.Id),
-                await db.Networks.CountAsync(x => x.Site!.ControllerId == c.Id),
-                await db.Devices.CountAsync(x => x.Site!.ControllerId == c.Id),
-                await db.Clients.CountAsync(x => x.Site!.ControllerId == c.Id),
-                await db.FirewallPolicies.CountAsync(x => x.Site!.ControllerId == c.Id),
+            result.Add(new Stat(g,
+                await db.Sites.CountAsync(x => x.GatewayId == g.Id),
+                await db.Networks.CountAsync(x => x.Site!.GatewayId == g.Id),
+                await db.Devices.CountAsync(x => x.Site!.GatewayId == g.Id),
+                await db.Clients.CountAsync(x => x.Site!.GatewayId == g.Id),
+                await db.FirewallPolicies.CountAsync(x => x.Site!.GatewayId == g.Id),
                 manual));
         }
         stats = result;

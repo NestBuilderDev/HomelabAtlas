@@ -1,33 +1,57 @@
 namespace HomelabAtlas.Data;
 
-/// <summary>Ein UniFi-Gateway (z. B. UCG Fiber) – oder ein manueller Standort ohne UniFi.</summary>
-public class UnifiController
+/// <summary>Type of a gateway / data source.</summary>
+public enum GatewayKind
+{
+    /// <summary>UniFi Cloud Gateway (e.g. UCG Fiber) via UniFi Network Integration API.</summary>
+    Unifi,
+    /// <summary>AVM / FRITZ! FRITZ!Box via TR-064.</summary>
+    FritzBox,
+    /// <summary>Manual location without any API connection.</summary>
+    Manual
+}
+
+/// <summary>A gateway that is synchronized automatically (UniFi, FRITZ!Box) – or a manual location.</summary>
+public class Gateway
 {
     public int Id { get; set; }
     public string Name { get; set; } = "";
-    /// <summary>IP/Hostname oder vollständige URL (https://ucg.local). Leer bei manuellen Standorten.</summary>
+    public GatewayKind Kind { get; set; } = GatewayKind.Unifi;
+    /// <summary>IP/hostname or full URL. Empty for manual locations.</summary>
     public string Host { get; set; } = "";
     public string? Location { get; set; }
-    /// <summary>API-Key, verschlüsselt mit ASP.NET Data Protection.</summary>
-    public string ApiKeyProtected { get; set; } = "";
+    /// <summary>User name (FRITZ!Box). Not used for UniFi.</summary>
+    public string? Username { get; set; }
+    /// <summary>API key (UniFi) or password (FRITZ!Box), encrypted with ASP.NET Core Data Protection.</summary>
+    public string SecretProtected { get; set; } = "";
     public bool IgnoreTlsErrors { get; set; } = true;
+    /// <summary>Included in the automatic sync.</summary>
     public bool Enabled { get; set; } = true;
-    /// <summary>Manueller Standort ohne UniFi-Anbindung (kein Sync, nur eigene Einträge).</summary>
-    public bool IsManual { get; set; }
 
     public DateTime? LastSyncUtc { get; set; }
+    /// <summary>Language-neutral status code, see <see cref="SyncStatus"/>.</summary>
     public string? LastSyncStatus { get; set; }
     public string? LastSyncError { get; set; }
+    /// <summary>Software version reported by the gateway (UniFi Network / FRITZ!OS).</summary>
     public string? ApplicationVersion { get; set; }
 
-    public List<UnifiSite> Sites { get; set; } = new();
+    public List<Site> Sites { get; set; } = new();
+
+    public bool IsManual => Kind == GatewayKind.Manual;
 }
 
-public class UnifiSite
+public static class SyncStatus
+{
+    public const string Ok = "OK";
+    public const string Warning = "Warning";
+    public const string Error = "Error";
+}
+
+public class Site
 {
     public int Id { get; set; }
-    public int ControllerId { get; set; }
-    public UnifiController? Controller { get; set; }
+    public int GatewayId { get; set; }
+    public Gateway? Gateway { get; set; }
     public string ExternalId { get; set; } = "";
     public string Name { get; set; } = "";
     public string? InternalReference { get; set; }
@@ -40,13 +64,13 @@ public class UnifiSite
     public List<FirewallPolicyEntry> FirewallPolicies { get; set; } = new();
 }
 
-/// <summary>Gemeinsame Basis aller Objekte. Notes bleiben beim Sync erhalten,
-/// manuelle Einträge (IsManual) werden vom Sync nie verändert oder gelöscht.</summary>
+/// <summary>Common base of all documented objects. Notes survive a sync;
+/// manual entries (IsManual) are never modified or deleted by the sync.</summary>
 public abstract class SyncedEntity
 {
     public int Id { get; set; }
     public int SiteId { get; set; }
-    public UnifiSite? Site { get; set; }
+    public Site? Site { get; set; }
     public string ExternalId { get; set; } = "";
     public string RawJson { get; set; } = "{}";
     public DateTime FirstSeenUtc { get; set; }
@@ -79,7 +103,7 @@ public class DeviceEntry : SyncedEntity
     public string? Features { get; set; }
     public string? Manufacturer { get; set; }
     public string? DeviceType { get; set; }
-    /// <summary>Raum / Rack / Einbauort.</summary>
+    /// <summary>Room / rack / mounting position.</summary>
     public string? Location { get; set; }
 }
 
@@ -91,12 +115,14 @@ public class ClientEntry : SyncedEntity
     public string? IpAddress { get; set; }
     public string? UplinkDeviceExternalId { get; set; }
     public string? ConnectedAt { get; set; }
+    /// <summary>Currently connected (null = unknown).</summary>
+    public bool? Online { get; set; }
 }
 
 public class FirewallZoneEntry : SyncedEntity
 {
     public string Name { get; set; } = "";
-    /// <summary>Kommagetrennte externe Netzwerk-IDs.</summary>
+    /// <summary>Comma-separated external network IDs.</summary>
     public string? NetworkExternalIds { get; set; }
     public string? Origin { get; set; }
 }

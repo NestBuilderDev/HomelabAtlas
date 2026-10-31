@@ -2,10 +2,10 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
 
-namespace HomelabAtlas.Unifi;
+namespace HomelabAtlas.Integrations;
 
-/// <summary>Tolerante JSON-Helfer – fehlende Felder liefern null statt Exceptions,
-/// damit Schemaänderungen der UniFi-API den Sync nicht brechen.</summary>
+/// <summary>Tolerant JSON helpers – missing fields return null instead of throwing,
+/// so schema changes in the APIs do not break the sync.</summary>
 public static class JsonExt
 {
     private static readonly JsonSerializerOptions Indented = new() { WriteIndented = true };
@@ -26,7 +26,8 @@ public static class JsonExt
     {
         var v = e.Get(path);
         if (v is null) return null;
-        return v.Value.ValueKind == JsonValueKind.String ? v.Value.GetString() : v.Value.ToString();
+        var s = v.Value.ValueKind == JsonValueKind.String ? v.Value.GetString() : v.Value.ToString();
+        return string.IsNullOrEmpty(s) ? null : s;
     }
 
     public static int? Int(this JsonElement e, params string[] path)
@@ -48,7 +49,7 @@ public static class JsonExt
         return null;
     }
 
-    /// <summary>Array von Strings (oder Objekten mit "name"/"id") als kommagetrennter Text.</summary>
+    /// <summary>Array of strings (or objects with "name"/"id") as comma-separated text.</summary>
     public static string? Join(this JsonElement e, params string[] path)
     {
         var v = e.Get(path);
@@ -62,7 +63,7 @@ public static class JsonExt
         return result.Length == 0 ? null : result;
     }
 
-    /// <summary>Flacht ein beliebiges JSON-Objekt zu "a.b=c; d=[x, y]" ab (für Firewall-Filter etc.).</summary>
+    /// <summary>Flattens any JSON object into "a.b=c; d=[x, y]" (used for firewall filters etc.).</summary>
     public static string Summarize(JsonElement? element, int maxLength = 250)
     {
         if (element is not { } root || root.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
@@ -128,11 +129,23 @@ public static class JsonExt
         return $"{(n >> 24) & 255}.{(n >> 16) & 255}.{(n >> 8) & 255}.{n & 255}/{prefix}";
     }
 
-    /// <summary>Sortierschlüssel für IPv4-Adressen/Subnetze (10.0.0.2 vor 10.0.0.10).</summary>
+    /// <summary>255.255.255.0 → 24</summary>
+    public static int? MaskToPrefix(string? mask)
+    {
+        if (string.IsNullOrWhiteSpace(mask) || !IPAddress.TryParse(mask.Trim(), out var ip)
+            || ip.AddressFamily != AddressFamily.InterNetwork)
+            return null;
+        var bits = 0;
+        foreach (var b in ip.GetAddressBytes())
+            for (var v = b; v != 0; v >>= 1) bits += v & 1;
+        return bits;
+    }
+
+    /// <summary>Sort key for IPv4 addresses/subnets (10.0.0.2 before 10.0.0.10).</summary>
     public static long? IpSortKey(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
-        var ipPart = value.Split('/', ' ', '–')[0].Trim();
+        var ipPart = value.Split('/', ' ', '–', ':')[0].Trim();
         if (!IPAddress.TryParse(ipPart, out var ip) || ip.AddressFamily != AddressFamily.InterNetwork) return null;
         var b = ip.GetAddressBytes();
         return ((long)b[0] << 24) | ((long)b[1] << 16) | ((long)b[2] << 8) | b[3];
