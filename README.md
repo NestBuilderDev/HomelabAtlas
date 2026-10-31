@@ -1,22 +1,23 @@
 # HomelabAtlas
 
-Network documentation for your homelab – automatically from UniFi and FRITZ!Box, plus manual entries for everything else.
+Easy light Network documentation for your homelab – automatically from UniFi and FRITZ!Box, plus manual entries for everything else.
 ASP.NET Core (.NET 10) + Blazor Server, SQLite, runs as a Linux Docker container. Multilingual (English, German, extensible).
 
+![Beschreibung des Bildes](docs/images/screenshot.png)
 
-# What HomelabAtlas Is For
+## 1. What HomelabAtlas is for
 
 **HomelabAtlas is a central documentation and inventory tool for homelabs and home networks.** It automatically collects network information from UniFi and FRITZ!Box devices, then lets you add information that cannot be discovered automatically—such as third-party devices, notes, and manually maintained locations.
 
 Its main purpose is to make it easier to answer questions like: **Which networks, VLANs, devices, clients, and firewall rules do I have, and which gateway or location are they associated with?**
 
-## What It Documents
+## 2 What It Documents
 
-### Networks and VLANs
+### 2.1 Networks and VLANs
 
 HomelabAtlas can document networks with details such as VLAN IDs, subnets, gateway addresses, and DHCP settings. This makes it easier to keep track of networks intended for servers, IoT devices, guests, or everyday use.
 
-### Devices and Clients
+### 2.2 Devices and Clients
 
 The application distinguishes between infrastructure devices and connected clients:
 
@@ -26,27 +27,27 @@ The application distinguishes between infrastructure devices and connected clien
 
 You can add your own details and notes—for example, a device’s rack position or purpose.
 
-### Firewall Zones and Rules
+### 2.3 Firewall Zones and Rules
 
 For UniFi, HomelabAtlas can document firewall zones and policies. Depending on the information provided by the API, this can include actions, source and destination zones, filters, protocols, enabled status, and rule order.
 
 FRITZ!Box does not provide equivalent rule-based firewall policies. Instead, HomelabAtlas documents IPv4 port forwarding entries as rules of the form **“Internet → LAN.”** This records existing port forwards; it does not manage firewall settings.
 
-## Automatic Data Sources
+## 3 Data Sources
 
-### UniFi
+### 3.1 UniFi
 
 HomelabAtlas connects to UniFi Cloud Gateways through the local UniFi Network Integration API. It can manage multiple gateways and collect information such as sites, networks, devices, clients, firewall zones, and firewall policies.
 
 You can start synchronization for an individual gateway or for all configured gateways. Automatic synchronization can also run on a schedule. The application displays the synchronization status and any warnings or errors.
 
-### FRITZ!Box
+### 3.2 FRITZ!Box
 
 FRITZ!Boxes are queried using TR-064. Depending on the services available, HomelabAtlas can collect information such as the model and FRITZ!OS version, LAN and DHCP settings, external WAN IP address, connected hosts, mesh nodes, and port forwards.
 
 The FRITZ!Box must be reachable from the container’s network. TR-064 is normally available only on the local network, and the FRITZ!Box must be configured with a user account that has the required permissions.
 
-## Manual Entries
+### 3.3  Manual Entries
 
 Not everything can be discovered through a gateway API. You can manually add networks, devices, clients, firewall zones, and rules. This is useful for documenting:
 
@@ -57,7 +58,7 @@ Not everything can be discovered through a gateway API. You can manually add net
 
 Manual entries can be associated with a synchronized site or with a **manual location**. Synchronization does not modify or delete manual entries. Notes attached to synchronized entries are also preserved across later synchronizations.
 
-## Overview and Search
+## 4 Dashboard
 
 The overview page shows statistics for each configured gateway or location, such as the number of networks, devices, clients, and firewall rules. It also displays synchronization status and the time of the last sync.
 
@@ -70,11 +71,11 @@ Tables support features including:
 
 This makes it easier to find information by location, device type, or network object.
 
-## Documentation Exports
+### 4.1 Documentation Exports
 
 HomelabAtlas can export documentation as **Markdown** or **PDF**, either for the entire environment or for a single gateway. Exports can include networks, devices, firewall zones and rules, clients, and notes. Markdown can be copied into a wiki, knowledge base, or technical documentation system.
 
-## Common Use Cases
+### 4.2 Common Use Cases
 
 - Maintain an up-to-date inventory of your home network without entering every basic detail manually.
 - Look up VLANs, subnets, and DHCP ranges in one place.
@@ -83,11 +84,17 @@ HomelabAtlas can export documentation as **Markdown** or **PDF**, either for the
 - Combine automatically collected gateway data with notes and third-party devices.
 - Share or archive portable network documentation as Markdown or PDF.
 
-## What HomelabAtlas Is Not
+### 4.3 Tables
+- **Column filters** below each header: text box (contains) or drop-down (exact value, incl. "(empty)")
+  - `=value` → exact match · `!value` → does not contain
+- **Sorting** by clicking a header (ascending / descending / off); IP addresses and VLANs sort numerically
+- Location filter and full-text search on top; click a row → notes & raw data
+
+### 4.3 What HomelabAtlas Is Not
 
 HomelabAtlas is primarily a **documentation tool**, not a network monitoring or configuration management system. It is not designed to change UniFi or FRITZ!Box settings, actively manage devices, trigger availability alerts, or analyze network traffic. The information shown depends on what each data source makes available.
 
-## Hosting and Security Notes
+### 4.4 Hosting and Security Notes
 
 The application runs as an ASP.NET Core/Blazor Server app in a Linux Docker container and stores its data in SQLite. A persistent volume for `/data` is important so the database, data protection keys, and optional language files survive container updates. Backups should include `/data/keys`; without those keys, stored API keys and passwords may no longer be decryptable.
 
@@ -95,13 +102,13 @@ The application runs as an ASP.NET Core/Blazor Server app in a Linux Docker cont
 
 **In short:** HomelabAtlas is for anyone who wants a clear, searchable, and exportable record of their homelab—with automatic data collection from UniFi and FRITZ!Box, plus manual entries for everything else.
 
-## Getting started
+## 5 Getting started
 
 You need Docker Engine (or Docker Desktop) running. The app listens on port `8080` and stores its database,
 data protection keys and optional custom locales in `/data`. Use a persistent volume to keep this data across
 container updates.
 
-### 🐳 With Docker Compose
+### 5.1 With Docker Compose
 
 ```bash
 mkdir homelabatlas
@@ -114,7 +121,7 @@ Open <http://localhost:8080> (or `http://<docker-host>:8080` when Docker runs on
 configuration creates and uses the named `homelabatlas-data` volume. Stop the app with `docker compose down`;
 the volume and its data are retained. Run `docker compose up -d` to start it again.
 
-### With 🐳 Docker
+### 5.2 With Docker
 
 Build the image from the repository root, then create and start the container with a named data volume:
 
@@ -130,7 +137,7 @@ docker run -d --name homelabatlas --restart unless-stopped \
 Open <http://localhost:8080>. Stop and restart the container with `docker stop homelabatlas` and
 `docker start homelabatlas`. The named volume keeps application data when the container is removed or replaced.
 
-## Configuration
+### 5.3 Configuration
 | Variable | Default | Description |
 |---|---|---|
 | `Sync__IntervalMinutes` | 60 | Automatic sync interval, `0` = off |
@@ -144,7 +151,7 @@ Open <http://localhost:8080>. Stop and restart the container with `docker stop h
 
 **Backup:** back up the `/data` volume (`homelabatlas.db` + `keys/`). Without `keys/`, stored API keys/passwords cannot be decrypted.
 
-## Languages
+### 5.4 Languages
 English is the primary language; German is included.
 
 **How the language is chosen** (first match wins):
@@ -153,28 +160,10 @@ English is the primary language; German is included.
 3. Browser language (`Accept-Language`)
 4. `Localization__DefaultCulture`
 
-**Adding a language** – no rebuild required: copy `src/HomelabAtlas/Locales/en.json` to `<culture>.json`
-(e.g. `fr.json`), translate the values (keep keys and `{0}` placeholders), set `"_language"` to the native name,
-and either add it to `Locales/` or place it in the data volume under `/data/locales/` and restart.
-Files in `/data/locales/` can also override single texts of the built-in languages.
 
-## Adding another gateway type
-Implement `IGatewayProvider` (`Integrations/`) – return a `GatewaySnapshot` with sites, networks, devices, clients,
-zones and rules – and register it in `Program.cs`. Sync, reconciliation (incl. protection of manual entries and notes),
-UI and export work automatically; only a new `GatewayKind` value and the form fields need to be added.
+## 6 Data sources
 
-## Database
-The schema is created on first start via `EnsureCreated`. For later model changes, switch to EF Core migrations
-(or delete the volume for a fresh install).
-
-## Notes
-- No built-in authentication – run it internally only or behind a reverse proxy with authentication (it contains firewall rules!).
-- Missing endpoints/services show up as a warning; everything else is still synced.
-- Sync warnings/errors are logged in English regardless of the UI language.
-
-## Data sources
-
-### 1. UniFi (automatic)
+### 6.1 UniFi (automatic)
 Any number of UniFi Cloud Gateways (e.g. UCG Fiber) via the official local Network Integration API
 (`https://<UCG>/proxy/network/integration/`, header `X-API-KEY`):
 
@@ -189,7 +178,7 @@ Any number of UniFi Cloud Gateways (e.g. UCG Fiber) via the official local Netwo
 
 Create an API key on each UCG: UniFi Network → *Settings → Integrations*.
 
-### 2. FRITZ!Box (automatic, TR-064)
+### 6.2 FRITZ!Box (automatic, TR-064)
 Any number of FRITZ!Boxes via TR-064 (SOAP, digest authentication, `http://<box>:49000` or `https://<box>:49443`):
 
 | Area | TR-064 service / action | Result in HomelabAtlas |
@@ -211,14 +200,33 @@ The FRITZ!Box has no rule-based firewall like UniFi, so IPv4 port forwardings ar
 
 TR-064 is only reachable from the local network – the container must be able to reach the box on port 49000/49443.
 
-### 3. Manual
+### 6.3 Manual
 Your own networks, devices (switches, servers, NAS, printers, PLCs …), clients, firewall zones and rules:
 - assign them to a synced site (e.g. a third-party switch behind the UCG or FRITZ!Box) **or**
 - to a **manual location** without API (*Locations / gateways → Manual location*).
 - Manual entries are marked purple, can be edited/deleted (✎ / 🗑) and are **never** modified or deleted by the sync.
 
-## Tables
-- **Column filters** below each header: text box (contains) or drop-down (exact value, incl. "(empty)")
-  - `=value` → exact match · `!value` → does not contain
-- **Sorting** by clicking a header (ascending / descending / off); IP addresses and VLANs sort numerically
-- Location filter and full-text search on top; click a row → notes & raw data
+## 7 Extending HomelabAtlas
+
+### 7.1 Adding a language
+**Adding a language** – no rebuild required: copy `src/HomelabAtlas/Locales/en.json` to `<culture>.json`
+(e.g. `fr.json`), translate the values (keep keys and `{0}` placeholders), set `"_language"` to the native name,
+and either add it to `Locales/` or place it in the data volume under `/data/locales/` and restart.
+Files in `/data/locales/` can also override single texts of the built-in languages.
+
+### 7.2 Adding another gateway type
+Implement `IGatewayProvider` (`Integrations/`) – return a `GatewaySnapshot` with sites, networks, devices, clients,
+zones and rules – and register it in `Program.cs`. Sync, reconciliation (incl. protection of manual entries and notes),
+UI and export work automatically; only a new `GatewayKind` value and the form fields need to be added.
+
+### 7.3 Database
+The schema is created on first start via `EnsureCreated`. For later model changes, switch to EF Core migrations
+(or delete the volume for a fresh install).
+
+
+## 8 Notes
+- No built-in authentication – run it internally only or behind a reverse proxy with authentication (it contains firewall rules!).
+- Missing endpoints/services show up as a warning; everything else is still synced.
+- Sync warnings/errors are logged in English regardless of the UI language.
+
+
