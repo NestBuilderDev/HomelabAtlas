@@ -47,6 +47,13 @@ public static class SyncStatus
     public const string Error = "Error";
 }
 
+public class DatabaseParameter
+{
+    public int Id { get; set; }
+    public string Parameter { get; set; } = "";
+    public string Value { get; set; } = "";
+}
+
 public class Site
 {
     public int Id { get; set; }
@@ -114,7 +121,7 @@ public class ClientEntry : SyncedEntity
     public string? MacAddress { get; set; }
     public string? IpAddress { get; set; }
     public string? UplinkDeviceExternalId { get; set; }
-    public string? ConnectedAt { get; set; }
+    public string? LinkSpeed { get; set; }
     /// <summary>Currently connected (null = unknown).</summary>
     public bool? Online { get; set; }
 }

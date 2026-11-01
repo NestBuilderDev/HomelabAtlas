@@ -121,8 +121,8 @@ public sealed class UnifiProvider(UnifiClientFactory clientFactory) : IGatewayPr
         c.MacAddress = j.Str("macAddress");
         c.IpAddress = j.Str("ipAddress");
         c.UplinkDeviceExternalId = j.Str("uplinkDeviceId");
-        c.ConnectedAt = j.Str("connectedAt");
-        c.Online = true; // the UniFi client list only contains connected clients
+        c.LinkSpeed = null;
+        c.Online = true;
     }
 
     private static void MapZone(FirewallZoneEntry z, JsonElement j)

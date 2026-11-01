@@ -43,7 +43,7 @@ You can start synchronization for an individual gateway or for all configured ga
 
 ### 3.2 FRITZ!Box
 
-FRITZ!Boxes are queried using TR-064. Depending on the services available, HomelabAtlas can collect information such as the model and FRITZ!OS version, LAN and DHCP settings, external WAN IP address, connected hosts, mesh nodes, and port forwards.
+FRITZ!Boxes are queried using TR-064. Depending on the services available, HomelabAtlas can collect information such as the model and FRITZ!OS version, LAN and DHCP settings, the standard guest-network subnet, external WAN IP address, connected hosts, mesh nodes, and port forwards.
 
 The FRITZ!Box must be reachable from the container’s network. TR-064 is normally available only on the local network, and the FRITZ!Box must be configured with a user account that has the required permissions.
 
@@ -149,7 +149,7 @@ Open <http://localhost:8080>. Stop and restart the container with `docker stop h
 | `Gateways__N__ApiKey` | | UniFi API key |
 | `Gateways__N__Username` / `__Password` | | FRITZ!Box credentials |
 
-**Backup:** back up the `/data` volume (`homelabatlas.db` + `keys/`). Without `keys/`, stored API keys/passwords cannot be decrypted.
+**Backup:** back up the `/data` volume (`homelabatlas.db` + `keys/`). Without `keys/`, stored API keys/passwords cannot be decrypted. The database stores its schema version in `DatabaseVersions`; before applying a schema-version upgrade, the application creates a SQLite backup in `/data/backups/` and then runs the migration.
 
 ### 5.4 Languages
 English is the primary language; German is included.
@@ -185,12 +185,13 @@ Any number of FRITZ!Boxes via TR-064 (SOAP, digest authentication, `http://<box>
 |---|---|---|
 | Model, FRITZ!OS | `DeviceInfo:GetInfo` | Device "router" + version |
 | LAN | `LANHostConfigManagement:GetInfo` | Network "LAN" (subnet, gateway, DHCP range) |
+| Guest network | FRITZ!Box standard guest subnet | Network "Gastnetz" (`192.168.179.0/24`, gateway `192.168.179.1`) |
 | WAN | `WANIPConnection` / `WANPPPConnection:GetExternalIPAddress` | Network "WAN / Internet" (external IP) |
 | Host list | `Hosts:X_AVM-DE_GetHostListPath` | Clients incl. online state, wired/Wi-Fi/guest/VPN |
 | Mesh | `Hosts:X_AVM-DE_GetMeshListPath` | Devices: repeaters / mesh nodes |
 | Port forwardings | `WAN*Connection:GetGenericPortMappingEntry` | Firewall rules "Internet → LAN" (action `FORWARD`) |
 
-The FRITZ!Box has no rule-based firewall like UniFi, so IPv4 port forwardings are documented as firewall rules.
+The FRITZ!Box guest network is documented with its standard IPv4 subnet (`192.168.179.0/24`, gateway `192.168.179.1`); TR-064 does not expose a separate guest-network IP configuration. The FRITZ!Box has no rule-based firewall like UniFi, so IPv4 port forwardings are documented as firewall rules.
 
 **Prerequisites on the FRITZ!Box**
 1. *Home Network → Network → Network Settings*: enable **"Allow access for applications"**

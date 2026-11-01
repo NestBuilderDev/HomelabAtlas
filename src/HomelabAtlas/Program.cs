@@ -68,6 +68,10 @@ using (var scope = app.Services.CreateScope())
     var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<HomelabAtlasDbContext>>();
     await using var db = await dbFactory.CreateDbContextAsync();
     await db.Database.EnsureCreatedAsync();
+    var backupPath = await DatabaseMigration.DatabaseMigrationAsync(db, app.Logger);
+    if (backupPath is not null)
+        app.Logger.LogInformation("Database schema upgraded; backup created at {BackupPath}", backupPath);
+
     await ConfigSeeder.SeedAsync(db, app.Configuration, scope.ServiceProvider.GetRequiredService<SecretProtector>());
 }
 

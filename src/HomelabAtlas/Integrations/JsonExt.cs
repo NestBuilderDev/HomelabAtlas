@@ -25,7 +25,8 @@ public static class JsonExt
     public static string? Str(this JsonElement e, params string[] path)
     {
         var v = e.Get(path);
-        if (v is null) return null;
+        if (v is null) 
+            return null;
         var s = v.Value.ValueKind == JsonValueKind.String ? v.Value.GetString() : v.Value.ToString();
         return string.IsNullOrEmpty(s) ? null : s;
     }

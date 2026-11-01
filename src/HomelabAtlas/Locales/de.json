@@ -8,7 +8,7 @@
   "Clients.Online": "online",
   "Col.Action": "Aktion",
   "Col.AutoSync": "Auto-Sync",
-  "Col.ConnectedSince": "Verbunden / Speed",
+  "Col.LinkSpeed": "Link-Geschwindigkeit",
   "Col.DestFilter": "Ziel-Filter",
   "Col.DestZone": "Ziel-Zone",
   "Col.Dhcp": "DHCP",
