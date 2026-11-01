@@ -3,7 +3,7 @@
 Easy light Network documentation for your homelab – automatically from UniFi and FRITZ!Box, plus manual entries for everything else.
 ASP.NET Core (.NET 10) + Blazor Server, SQLite, runs as a Linux Docker container. Multilingual (English, German, extensible).
 
-![Beschreibung des Bildes](docs/images/screenshot.png)
+![Screenshot](docs/images/screenshot.png)
 
 ## 1. What HomelabAtlas is for
 
@@ -221,8 +221,7 @@ zones and rules – and register it in `Program.cs`. Sync, reconciliation (incl.
 UI and export work automatically; only a new `GatewayKind` value and the form fields need to be added.
 
 ### 7.3 Database
-The schema is created on first start via `EnsureCreated`. For later model changes, switch to EF Core migrations
-(or delete the volume for a fresh install).
+The schema is created on first start via `EnsureCreated`.
 
 
 ## 8 Notes
