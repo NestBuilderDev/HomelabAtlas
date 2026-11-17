@@ -113,7 +113,7 @@ container updates.
 ```bash
 mkdir homelabatlas
 cd homelabatlas
-curl -L https://github.com/Michi1983/HomelabAtlas/blob/main/docker-compose.yml?raw=true -o docker-compose.yml
+curl -L https://github.com/nestbuilderdev/HomelabAtlas/blob/main/docker-compose.yml?raw=true -o docker-compose.yml
 docker compose up -d
 ```
 
@@ -131,7 +131,7 @@ docker run -d --name homelabatlas --restart unless-stopped \
   -p 8080:8080 \
   -v homelabatlas-data:/data \
   -e TZ=Europe/Berlin \
-  ghcr.io/michi1983/homelabatlas:latest
+  ghcr.io/nestbuilderdev/homelabatlas:latest
 ```
 
 Open <http://localhost:8080>. Stop and restart the container with `docker stop homelabatlas` and
