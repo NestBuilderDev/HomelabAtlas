@@ -7,11 +7,12 @@
     <RootNamespace>HomelabAtlas</RootNamespace>
     <AssemblyName>HomelabAtlas</AssemblyName>
     <Version>1.1.0</Version>
+    <UserSecretsId>287dce21-1a6e-4226-8b11-521cc42a4ad6</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.*" />
-    <PackageReference Include="QuestPDF" Version="2026.9.1" />
+    <PackageReference Include="QuestPDF" Version="2026.9.2" />
   </ItemGroup>
 
   <ItemGroup>

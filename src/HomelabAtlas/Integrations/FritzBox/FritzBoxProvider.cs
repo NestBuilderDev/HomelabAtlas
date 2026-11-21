@@ -28,6 +28,9 @@ public sealed class FritzBoxProvider(SecretProtector protector) : IGatewayProvid
     private const string BoxDeviceId = "fritzbox";
     private const string LanNetworkId = "lan";
     private const string WanNetworkId = "wan";
+    private const string GuestNetworkId = "guest";
+    private const string GuestNetworkSubnet = "192.168.179.0/24";
+    private const string GuestNetworkGateway = "192.168.179.1";
     private const string InternetZoneId = "zone-internet";
     private const string LanZoneId = "zone-lan";
 
@@ -101,6 +104,25 @@ public sealed class FritzBoxProvider(SecretProtector protector) : IGatewayProvid
                     n.DhcpRange = null;
                 }));
             }
+
+            networks.Add(new(GuestNetworkId, JsonSerializer.Serialize(new
+            {
+                source = "FRITZ!Box standard guest network",
+                subnet = GuestNetworkSubnet,
+                gateway = GuestNetworkGateway
+            }), n =>
+            {
+                n.Name = "Gastnetz";
+                n.Management = "GUEST";
+                n.Enabled = true;
+                n.IsDefault = false;
+                n.VlanId = null;
+                n.GatewayIp = GuestNetworkGateway;
+                n.Subnet = GuestNetworkSubnet;
+                n.DhcpMode = "SERVER";
+                n.DhcpRange = null;
+            }));
+
             site.Networks = networks;
         }
 
@@ -147,14 +169,17 @@ public sealed class FritzBoxProvider(SecretProtector protector) : IGatewayProvid
         }
         site.Devices = devices;
 
-        // ---------- Clients (host list, without the mesh devices) ----------
+        // ---------- Clients (host list, excluding mesh infrastructure represented as devices) ----------
         if (hosts is not null)
         {
-            var deviceMacs = meshNodes.Select(m => m.Str("device_mac_address")?.ToLowerInvariant())
-                .Where(m => m is not null).ToHashSet();
+            var deviceMacs = meshNodes
+                .Where(m => m.Str("mesh_role") is "master" or "slave")
+                .Select(m => m.Str("device_mac_address"))
+                .Where(m => m is not null)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             site.Clients = hosts
-                .Where(h => !deviceMacs.Contains(Val(h, "MACAddress")?.ToLowerInvariant()))
+                .Where(h => Val(h, "MACAddress") is not { } mac || !deviceMacs.Contains(mac))
                 .Select(h =>
                 {
                     var mac = Val(h, "MACAddress")?.ToLowerInvariant();
@@ -325,7 +350,7 @@ public sealed class FritzBoxProvider(SecretProtector protector) : IGatewayProvid
         c.Type = type;
 
         c.UplinkDeviceExternalId = null;
-        c.ConnectedAt = Val(h, "X_AVM-DE_Speed") is { } speed && speed != "0" ? $"{speed} Mbit/s" : null;
+        c.LinkSpeed = Val(h, "X_AVM-DE_Speed") is { } speed && speed != "0" ? $"{speed} Mbit/s" : null;
     }
 
     private static string? Val(IReadOnlyDictionary<string, string>? d, string key) =>

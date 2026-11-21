@@ -72,7 +72,7 @@
         IpColumn(L["Col.Ip"], c => c.IpAddress),
         new() { Title = L["Col.Mac"], Value = c => c.MacAddress, CssClass = "mono" },
         new() { Title = L["Col.Uplink"], Value = Uplink, SelectFilter = true },
-        new() { Title = L["Col.ConnectedSince"], Value = c => c.ConnectedAt },
+        new() { Title = L["Col.LinkSpeed"], Value = c => c.LinkSpeed },
         SourceColumn(),
         NotesColumn()
     ];
@@ -87,7 +87,7 @@
         t.IpAddress = Fmt.Clean(f.IpAddress);
         t.MacAddress = Fmt.Clean(f.MacAddress)?.ToLowerInvariant();
         t.UplinkDeviceExternalId = Fmt.Clean(f.UplinkDeviceExternalId);
-        t.ConnectedAt = f.ConnectedAt;
+        t.LinkSpeed = Fmt.Clean(f.LinkSpeed);
         t.Online = f.Online;
     }
 

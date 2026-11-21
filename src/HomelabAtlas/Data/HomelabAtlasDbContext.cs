@@ -4,6 +4,7 @@ namespace HomelabAtlas.Data;
 
 public class HomelabAtlasDbContext(DbContextOptions<HomelabAtlasDbContext> options) : DbContext(options)
 {
+    public DbSet<DatabaseParameter> DatabaseParameter => Set<DatabaseParameter>();
     public DbSet<Gateway> Gateways => Set<Gateway>();
     public DbSet<Site> Sites => Set<Site>();
     public DbSet<NetworkEntry> Networks => Set<NetworkEntry>();

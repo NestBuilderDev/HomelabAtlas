@@ -3,7 +3,7 @@
 Easy light Network documentation for your homelab – automatically from UniFi and FRITZ!Box, plus manual entries for everything else.
 ASP.NET Core (.NET 10) + Blazor Server, SQLite, runs as a Linux Docker container. Multilingual (English, German, extensible).
 
-![Beschreibung des Bildes](docs/images/screenshot.png)
+![Screenshot](docs/images/screenshot.png)
 
 ## 1. What HomelabAtlas is for
 
@@ -43,7 +43,7 @@ You can start synchronization for an individual gateway or for all configured ga
 
 ### 3.2 FRITZ!Box
 
-FRITZ!Boxes are queried using TR-064. Depending on the services available, HomelabAtlas can collect information such as the model and FRITZ!OS version, LAN and DHCP settings, external WAN IP address, connected hosts, mesh nodes, and port forwards.
+FRITZ!Boxes are queried using TR-064. Depending on the services available, HomelabAtlas can collect information such as the model and FRITZ!OS version, LAN and DHCP settings, the standard guest-network subnet, external WAN IP address, connected hosts, mesh nodes, and port forwards.
 
 The FRITZ!Box must be reachable from the container’s network. TR-064 is normally available only on the local network, and the FRITZ!Box must be configured with a user account that has the required permissions.
 
@@ -113,7 +113,7 @@ container updates.
 ```bash
 mkdir homelabatlas
 cd homelabatlas
-curl -L https://github.com/Michi1983/HomelabAtlas/blob/main/docker-compose.yml?raw=true -o docker-compose.yml
+curl -L https://github.com/nestbuilderdev/HomelabAtlas/blob/main/docker-compose.yml?raw=true -o docker-compose.yml
 docker compose up -d
 ```
 
@@ -131,7 +131,7 @@ docker run -d --name homelabatlas --restart unless-stopped \
   -p 8080:8080 \
   -v homelabatlas-data:/data \
   -e TZ=Europe/Berlin \
-  ghcr.io/michi1983/homelabatlas:latest
+  ghcr.io/nestbuilderdev/homelabatlas:latest
 ```
 
 Open <http://localhost:8080>. Stop and restart the container with `docker stop homelabatlas` and
@@ -149,7 +149,7 @@ Open <http://localhost:8080>. Stop and restart the container with `docker stop h
 | `Gateways__N__ApiKey` | | UniFi API key |
 | `Gateways__N__Username` / `__Password` | | FRITZ!Box credentials |
 
-**Backup:** back up the `/data` volume (`homelabatlas.db` + `keys/`). Without `keys/`, stored API keys/passwords cannot be decrypted.
+**Backup:** back up the `/data` volume (`homelabatlas.db` + `keys/`). Without `keys/`, stored API keys/passwords cannot be decrypted. The database stores its schema version in `DatabaseVersions`; before applying a schema-version upgrade, the application creates a SQLite backup in `/data/backups/` and then runs the migration.
 
 ### 5.4 Languages
 English is the primary language; German is included.
@@ -185,12 +185,13 @@ Any number of FRITZ!Boxes via TR-064 (SOAP, digest authentication, `http://<box>
 |---|---|---|
 | Model, FRITZ!OS | `DeviceInfo:GetInfo` | Device "router" + version |
 | LAN | `LANHostConfigManagement:GetInfo` | Network "LAN" (subnet, gateway, DHCP range) |
+| Guest network | FRITZ!Box standard guest subnet | Network "Gastnetz" (`192.168.179.0/24`, gateway `192.168.179.1`) |
 | WAN | `WANIPConnection` / `WANPPPConnection:GetExternalIPAddress` | Network "WAN / Internet" (external IP) |
 | Host list | `Hosts:X_AVM-DE_GetHostListPath` | Clients incl. online state, wired/Wi-Fi/guest/VPN |
 | Mesh | `Hosts:X_AVM-DE_GetMeshListPath` | Devices: repeaters / mesh nodes |
 | Port forwardings | `WAN*Connection:GetGenericPortMappingEntry` | Firewall rules "Internet → LAN" (action `FORWARD`) |
 
-The FRITZ!Box has no rule-based firewall like UniFi, so IPv4 port forwardings are documented as firewall rules.
+The FRITZ!Box guest network is documented with its standard IPv4 subnet (`192.168.179.0/24`, gateway `192.168.179.1`); TR-064 does not expose a separate guest-network IP configuration. The FRITZ!Box has no rule-based firewall like UniFi, so IPv4 port forwardings are documented as firewall rules.
 
 **Prerequisites on the FRITZ!Box**
 1. *Home Network → Network → Network Settings*: enable **"Allow access for applications"**
@@ -220,8 +221,7 @@ zones and rules – and register it in `Program.cs`. Sync, reconciliation (incl.
 UI and export work automatically; only a new `GatewayKind` value and the form fields need to be added.
 
 ### 7.3 Database
-The schema is created on first start via `EnsureCreated`. For later model changes, switch to EF Core migrations
-(or delete the volume for a fresh install).
+The schema is created on first start via `EnsureCreated`.
 
 
 ## 8 Notes
