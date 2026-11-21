@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>HomelabAtlas</RootNamespace>
     <AssemblyName>HomelabAtlas</AssemblyName>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <UserSecretsId>287dce21-1a6e-4226-8b11-521cc42a4ad6</UserSecretsId>
   </PropertyGroup>
 
