@@ -121,7 +121,7 @@ public sealed class UnifiProvider(UnifiClientFactory clientFactory) : IGatewayPr
         c.MacAddress = j.Str("macAddress");
         c.IpAddress = j.Str("ipAddress");
         c.UplinkDeviceExternalId = j.Str("uplinkDeviceId");
-        c.ConnectedAt = string.Empty; //j.Str("connectedAt");
+        c.LinkSpeed = string.Empty; //j.Str("connectedAt");
         c.Online = true;
     }
 
